@@ -1,0 +1,2030 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CITYSHIELD RESILIENCE - AI-Powered Urban Command Center</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        navy: {
+                            950: '#070A11',
+                            900: '#0B0F19',
+                            850: '#0F1523',
+                            800: '#111827',
+                            700: '#1F2937',
+                            600: '#374151'
+                        },
+                        cyan: {
+                            400: '#22D3EE',
+                            500: '#06B6D4',
+                            600: '#0891B2'
+                        },
+                        brand: {
+                            accent: '#06B6D4',
+                            danger: '#EF4444',
+                            warning: '#F59E0B',
+                            success: '#10B981',
+                            info: '#3B82F6'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet + public Esri map tiles: no Google API key or billing quota required -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <!-- Recharts / Chart.js for smooth graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom scrollbar for dense command center feel */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0F19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1F2937;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06B6D4;
+        }
+        
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.4);
+        }
+        .glass-panel-glow {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
+        }
+        
+        .pulse-red {
+            animation: pulse-red-anim 2s infinite;
+        }
+        @keyframes pulse-red-anim {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .pulse-cyan {
+            animation: pulse-cyan-anim 2s infinite;
+        }
+        @keyframes pulse-cyan-anim {
+            0% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+        }
+
+        /* Google Maps command-center shell */
+        .google-map-shell {
+            background: #0b1220;
+            position: relative;
+            overflow: hidden;
+        }
+        .google-map-shell .leaflet-container { font-family: 'Inter', sans-serif; background: #0b1220; }
+        .google-map-shell .leaflet-control-attribution { font-size: 9px; }
+        .cityshield-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 9px rgba(0,0,0,.7); }
+        .cityshield-dot.current { width: 14px; height: 14px; border: 3px solid #22d3ee; background: #f8fafc; }
+        .cityshield-label { color: #f8fafc; font: 700 10px Inter, sans-serif; white-space: nowrap; text-shadow: 0 1px 3px #020617, 1px 0 3px #020617; }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #111827; color: #e2e8f0; }
+        .leaflet-popup-content { margin: 10px 12px; }
+        .map-overlay {
+            position: absolute;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .map-overlay.is-interactive { pointer-events: auto; }
+        .leaflet-tile { image-rendering: auto; }
+        .leaflet-control-attribution { background: rgba(7,18,29,.84) !important; color: #94a3b8 !important; font-size: 8px !important; line-height: 1.25; max-width: min(78vw, 460px); white-space: normal !important; }
+        .leaflet-control-attribution a { color: #67e8f9 !important; }
+
+        /* CV Bounding Box Animations */
+        .cv-box {
+            position: absolute;
+            border: 2px solid #EF4444;
+            background: rgba(239, 68, 68, 0.2);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-navy-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col overflow-x-hidden select-none">
+
+    <!-- App Root -->
+    <div id="app" class="flex flex-col flex-1 min-h-screen">
+        <!-- Application dynamic rendering target -->
+    </div>
+
+    <script>
+        // Internationalization Dictionary
+        const I18N = {
+            en: {
+                title: "CITYSHIELD RESILIENCE",
+                tagline: "Predict. Protect. Respond. Recover.",
+                org: "Nova City Resilience Command",
+                sysStatus: "Systems Operational",
+                activeIncidents: "Active Incidents",
+                highRiskZones: "High-Risk Zones",
+                infraAlerts: "Infrastructure Alerts",
+                essentialServices: "Essential Services",
+                citizenReports: "Citizen Reports",
+                aiRecs: "AI Recs Pending",
+                searchPlaceholder: "Search incidents, zones, facilities...",
+                simTitle: "Resilience Simulation Engine",
+                approve: "Approve Plan",
+                reject: "Reject",
+                modify: "Modify Parameters",
+                liveTicker: "LIVE DEMO STREAM",
+                confidence: "Confidence",
+                evidence: "Evidence",
+                why: "AI Reasoning Factor"
+            },
+            hi: {
+                title: "सिटीशील्ड रेजिलिएंस",
+                tagline: "पूर्वानुमान। सुरक्षा। प्रतिक्रिया। पुनर्प्राप्ति।",
+                org: "नोवा सिटी लचीलापन कमान",
+                sysStatus: "सभी प्रणालियाँ चालू हैं",
+                activeIncidents: "सक्रिय घटनाएँ",
+                highRiskZones: "उच्च जोखिम वाले क्षेत्र",
+                infraAlerts: "इन्फ्रास्ट्रक्चर अलर्ट",
+                essentialServices: "आवश्यक सेवाएं",
+                citizenReports: "नागरिक रिपोर्टें",
+                aiRecs: "एआई सिफारिशें लंबित",
+                searchPlaceholder: "घटनाओं, क्षेत्रों, सुविधाओं को खोजें...",
+                simTitle: "लचीलापन सिमुलेशन इंजन",
+                approve: "योजना स्वीकृत करें",
+                reject: "अस्वीकार",
+                modify: "पैरामीटर बदलें",
+                liveTicker: "लाइव डेमो स्ट्रीम",
+                confidence: "विश्वास स्तर",
+                evidence: "साक्ष्य",
+                why: "एआई तर्क कारक"
+            },
+            kn: {
+                title: "ಸಿಟಿಶೀಲ್ಡ್ ರೆಸಿಲಿಯನ್ಸ್",
+                tagline: "ಮುನ್ಸೂಚನೆ. ರಕ್ಷಣೆ. ಪ್ರತಿಕ್ರಿಯೆ. ಚೇತರಿಕೆ.",
+                org: "ನೋವಾ ಸಿಟಿ ರೆಸಿಲಿಯನ್ಸ್ ಕಮಾಂಡ್",
+                sysStatus: "ವ್ಯವಸ್ಥೆಗಳು ಕಾರ್ಯಾಚರಣೆಯಲ್ಲಿವೆ",
+                activeIncidents: "ಸಕ್ರಿಯ ಘಟನೆಗಳು",
+                highRiskZones: "ಹೆಚ್ಚಿನ ಅಪಾಯದ ವಲಯಗಳು",
+                infraAlerts: "ಮೂಲಸೌಕರ್ಯ ಎಚ್ಚರಿಕೆಗಳು",
+                essentialServices: "ಅಗತ್ಯ ಸೇವೆಗಳು",
+                citizenReports: "ನಾಗರಿಕ ವರದಿಗಳು",
+                aiRecs: "AI ಶಿಫಾರಸುಗಳು ಬಾಕಿ ಇವೆ",
+                searchPlaceholder: "ಘಟನೆಗಳು, ಸ್ಥಳಗಳನ್ನು ಹುಡುಕಿ...",
+                simTitle: "ರೆಸಿಲಿಯನ್ಸ್ ಸಿಮ್ಯುಲೇಶನ್ ಎಂಜಿನ್",
+                approve: "ಯೋಜನೆ ಅನುಮೋದಿಸಿ",
+                reject: "ತಿರಸ್ಕರಿಸಿ",
+                modify: "ಪರಿಷ್ಕರಿಸಿ",
+                liveTicker: "ಲೈವ್ ಡೆಮೊ ಸ್ಟ್ರೀಮ್",
+                confidence: "ಆತ್ಮವಿಶ್ವಾಸ ಮಟ್ಟ",
+                evidence: "ಸಾಕ್ಷ್ಯಗಳು",
+                why: "AI ವಿವರಣೆ"
+            },
+            es: {
+                title: "CITYSHIELD RESILIENCE",
+                tagline: "Predecir. Proteger. Responder. Recuperar.",
+                org: "Comando de Resiliencia Nova City",
+                sysStatus: "Sistemas Operativos",
+                activeIncidents: "Incidentes Activos",
+                highRiskZones: "Zonas de Alto Riesgo",
+                infraAlerts: "Alertas Infraestructura",
+                essentialServices: "Servicios Esenciales",
+                citizenReports: "Reportes Ciudadanos",
+                aiRecs: "Recomendaciones IA",
+                searchPlaceholder: "Buscar incidentes, infraestructura...",
+                simTitle: "Motor de Simulación de Resiliencia",
+                approve: "Aprobar Plan",
+                reject: "Rechazar",
+                modify: "Modificar",
+                liveTicker: "STREAM EN VIVO",
+                confidence: "Confianza",
+                evidence: "Evidencia",
+                why: "Razonamiento IA"
+            },
+            fr: {
+                title: "CITYSHIELD RESILIENCE",
+                tagline: "Prévoir. Protéger. Répondre. Rétablir.",
+                org: "Commandement de Résilience Nova City",
+                sysStatus: "Systèmes Opérationnels",
+                activeIncidents: "Incidents Actifs",
+                highRiskZones: "Zones à Risque Élevé",
+                infraAlerts: "Alertes Infrastructure",
+                essentialServices: "Services Essentiels",
+                citizenReports: "Signalements Citoyens",
+                aiRecs: "Recommandations IA",
+                searchPlaceholder: "Rechercher des incidents, zones...",
+                simTitle: "Moteur de Simulation de Résilience",
+                approve: "Approuver le Plan",
+                reject: "Rejeter",
+                modify: "Modifier",
+                liveTicker: "FLUX EN DIRECT",
+                confidence: "Confiance",
+                evidence: "Preuves",
+                why: "Raisonnement IA"
+            ,
+            de: { title: "CITYSHIELD RESILIENCE", tagline: "Vorhersagen. Schützen. Reagieren. Erholen.", org: "Nova City Resilienzkommando", sysStatus: "Systeme betriebsbereit", activeIncidents: "Aktive Vorfälle", highRiskZones: "Hochrisikozonen", infraAlerts: "Infrastrukturwarnungen", essentialServices: "Grundversorgung", citizenReports: "Bürgerberichte", aiRecs: "KI-Empfehlungen", searchPlaceholder: "Vorfälle, Zonen und Anlagen suchen…", simTitle: "Resilienz-Simulationsmodul", approve: "Plan genehmigen", reject: "Ablehnen", modify: "Parameter ändern", liveTicker: "LIVE-STREAM", confidence: "Konfidenz", evidence: "Nachweise", why: "KI-Begründung" },
+            pt: { title: "CITYSHIELD RESILIENCE", tagline: "Prever. Proteger. Responder. Recuperar.", org: "Comando de Resiliência da Nova City", sysStatus: "Sistemas operacionais", activeIncidents: "Incidentes ativos", highRiskZones: "Zonas de alto risco", infraAlerts: "Alertas de infraestrutura", essentialServices: "Serviços essenciais", citizenReports: "Relatos cidadãos", aiRecs: "Recomendações de IA", searchPlaceholder: "Pesquisar incidentes e zonas…", simTitle: "Simulador de resiliência", approve: "Aprovar plano", reject: "Rejeitar", modify: "Alterar parâmetros", liveTicker: "FLUXO AO VIVO", confidence: "Confiança", evidence: "Evidências", why: "Motivo da IA" },
+            zh: { title: "CITYSHIELD 韧性城市", tagline: "预测。保护。响应。恢复。", org: "新城韧性指挥中心", sysStatus: "系统运行正常", activeIncidents: "活动事件", highRiskZones: "高风险区域", infraAlerts: "基础设施警报", essentialServices: "关键服务", citizenReports: "市民报告", aiRecs: "待处理 AI 建议", searchPlaceholder: "搜索事件、区域和设施…", simTitle: "韧性模拟引擎", approve: "批准方案", reject: "拒绝", modify: "修改参数", liveTicker: "实时演示流", confidence: "置信度", evidence: "证据", why: "AI 推理因素" },
+            ja: { title: "CITYSHIELD レジリエンス", tagline: "予測。保護。対応。復旧。", org: "ノバシティ レジリエンス司令部", sysStatus: "システム稼働中", activeIncidents: "進行中の事案", highRiskZones: "高リスク区域", infraAlerts: "インフラ警報", essentialServices: "重要サービス", citizenReports: "市民レポート", aiRecs: "保留中のAI提案", searchPlaceholder: "事案・区域・施設を検索…", simTitle: "レジリエンス シミュレーション", approve: "計画を承認", reject: "却下", modify: "パラメータ変更", liveTicker: "ライブデモ", confidence: "信頼度", evidence: "根拠", why: "AIの判断要因" },
+            ar: { title: "سيتي شيلد للمرونة", tagline: "تنبأ. احمِ. استجب. تعافَ.", org: "قيادة مرونة مدينة نوفا", sysStatus: "الأنظمة تعمل", activeIncidents: "الحوادث النشطة", highRiskZones: "مناطق عالية الخطورة", infraAlerts: "تنبيهات البنية التحتية", essentialServices: "الخدمات الأساسية", citizenReports: "بلاغات السكان", aiRecs: "توصيات الذكاء الاصطناعي", searchPlaceholder: "ابحث عن الحوادث والمناطق…", simTitle: "محرك محاكاة المرونة", approve: "اعتماد الخطة", reject: "رفض", modify: "تعديل المعلمات", liveTicker: "بث مباشر", confidence: "مستوى الثقة", evidence: "الأدلة", why: "سبب توصية الذكاء الاصطناعي" },
+            bn: { title: "সিটিশিল্ড রেজিলিয়েন্স", tagline: "পূর্বাভাস। সুরক্ষা। প্রতিক্রিয়া। পুনরুদ্ধার।", org: "নোভা সিটি রেজিলিয়েন্স কমান্ড", sysStatus: "সিস্টেম সচল", activeIncidents: "সক্রিয় ঘটনা", highRiskZones: "উচ্চ ঝুঁকির অঞ্চল", infraAlerts: "অবকাঠামো সতর্কতা", essentialServices: "প্রয়োজনীয় পরিষেবা", citizenReports: "নাগরিক রিপোর্ট", aiRecs: "AI সুপারিশ অপেক্ষমাণ", searchPlaceholder: "ঘটনা ও অঞ্চল খুঁজুন…", simTitle: "রেজিলিয়েন্স সিমুলেশন", approve: "পরিকল্পনা অনুমোদন", reject: "প্রত্যাখ্যান", modify: "প্যারামিটার বদলান", liveTicker: "লাইভ ডেমো", confidence: "আস্থার মাত্রা", evidence: "প্রমাণ", why: "AI যুক্তির কারণ" }
+            }
+        };
+
+        // Application Global State
+        const state = {
+            currentLang: 'en',
+            authenticated: false,
+            roleChooserOpen: false,
+            pendingTab: 'overview',
+            locationRequestStarted: false,
+            locationStatus: 'idle',
+            userLocation: null,
+            mapCenter: null,
+            mapView: null,
+            mapCenterMode: 'demo',
+            userRole: 'Admin',
+            userName: 'Operations Administrator',
+            activeTab: 'overview', // overview, map, incidents, reports, risk, infra, services, simulator, ai-center, alerts, analytics, audit, settings, landing
+            searchQuery: '',
+            isLandingView: true,
+            notificationsOpen: false,
+            searchModalOpen: false,
+            selectedMapItem: null,
+            mapType: 'roadmap',
+            weatherOverlay: true,
+            weather: { loading: true, temp: '--', wind: '--', precipitation: '--', description: 'Loading live weather…', updated: null },
+            simulatedAlertIndex: 0,
+            automatedSimulation: true,
+            simulatedMapAlerts: [],
+            radarEnabled: false,
+            aqiEnabled: true,
+            aqi: { loading: true, value: '--', label: 'Loading AQI…', updated: null },
+            voiceAlertsEnabled: false,
+            voiceAlertLanguage: 'en-US',
+            routeOrigin: 'current-location',
+            routeDestination: 'INC-401',
+            reportDraft: { category: 'Flooding', description: '', location: null, locationLabel: 'Location not captured', photoName: '' },
+            submittedReports: [],
+            responderTrackingEnabled: true,
+            responders: [
+                { id: 'AMB-07', name: 'Ambulance 07', type: 'AMBULANCE', status: 'EN ROUTE', lat: 12.906, lng: 74.848, color: '#22d3ee' },
+                { id: 'FIRE-12', name: 'Fire Engine 12', type: 'FIRE', status: 'AVAILABLE', lat: 12.923, lng: 74.865, color: '#ef4444' },
+                { id: 'POL-21', name: 'Police Unit 21', type: 'POLICE', status: 'ESCORT', lat: 12.918, lng: 74.842, color: '#f59e0b' }
+            ],
+            resourceInventory: [
+                { id: 'ambulance', label: 'Ambulances', icon: 'fa-truck-medical', total: 12, available: 8, deployed: 4, color: 'cyan' },
+                { id: 'fire', label: 'Fire trucks', icon: 'fa-fire-extinguisher', total: 8, available: 5, deployed: 3, color: 'red' },
+                { id: 'police', label: 'Police units', icon: 'fa-shield-halved', total: 24, available: 18, deployed: 6, color: 'amber' },
+                { id: 'rescue', label: 'Rescue crews', icon: 'fa-person-circle-exclamation', total: 6, available: 4, deployed: 2, color: 'emerald' }
+            ],
+            mapLayers: {
+                risk: true,
+                infrastructure: true,
+                flood: true,
+                reports: true,
+                services: true,
+                incidents: true
+            },
+            simulation: {
+                active: false,
+                type: 'rain', // rain, storm, quake, grid
+                intensity: 40,
+                duration: 6,
+                step: 1, // 1: Ready, 2: Simulating, 3: Impact Calculated, 4: Approved
+                results: null
+            },
+            cvUpload: {
+                image: null,
+                scanning: false,
+                detectedBoxes: []
+            },
+            fusedReports: [
+                { id: 'CS-10482', cat: 'Road Damage', loc: 'University Gate, Zone 4', time: '10 mins ago', desc: 'Deep pothole with standing water forming fast.', simScore: 94 },
+                { id: 'CS-10485', cat: 'Road Damage', loc: 'University Gate Rd', time: '8 mins ago', desc: 'Severe street depression disrupting traffic.', simScore: 92 },
+                { id: 'CS-10489', cat: 'Road Fault', loc: 'Main Gate University', time: '5 mins ago', desc: 'Cracked pavement causing swerving.', simScore: 91 },
+                { id: 'CS-10492', cat: 'Pothole', loc: 'University North Gate', time: '3 mins ago', desc: 'Water filled hole near entrance.', simScore: 89 },
+                { id: 'CS-10495', cat: 'Traffic Hazard', loc: 'University Blvd', time: 'Just now', desc: 'Vehicles hitting asphalt gap.', simScore: 88 }
+            ],
+            auditLogs: [
+                { id: 'AUD-9021', time: '14:28:12 UTC', event: 'Human Approval - Drainage Reroute Plan', actor: 'Ops Administrator', status: 'EXECUTED', impact: 'Zone 4 Risk Reduced' },
+                { id: 'AUD-9020', time: '14:24:05 UTC', event: 'AI Duplicate Fusion - 7 Reports Matched', actor: 'CityShield AI Engine', status: 'FUSED', impact: 'Unified Incident #INC-402 created' },
+                { id: 'AUD-9019', time: '14:15:30 UTC', event: 'Sensor Anomaly Detected - Water Pressure Drop', actor: 'IoT Telem-Subsystem B', status: 'FLAGGED', impact: 'Automated Inspector Dispatched' },
+                { id: 'AUD-9018', time: '13:50:11 UTC', event: 'Computer Vision Scan - Bridge B-204 Crack', actor: 'Drone Fleet #04', status: 'VERIFIED', impact: 'Priority Elevated to Warning' }
+            ],
+            liveTickerEvents: [
+                "● LIVE: Citizen report #CS-10501 logged in Zone 2",
+                "● SENSOR: Water pressure nominal at Central Station",
+                "● AI ENGINE: Flood forecast recalibrated for next 6h window",
+                "● INFRASTRUCTURE: Bridge B-204 structural telemetry active"
+            ],
+            activeNotifications: [
+                { id: 1, title: "Flood Risk Elevated", detail: "Zone 4 forecast saturation reaching 82%", time: "2m ago", priority: "high" },
+                { id: 2, title: "Bridge Inspection Recommended", detail: "Bridge B-204 telemetry anomaly", time: "14m ago", priority: "medium" },
+                { id: 3, title: "Citizen Reports Pending Fusion", detail: "5 new reports near University Gate", time: "22m ago", priority: "low" },
+                { id: 4, title: "Hospital H-12 Power Switched", detail: "Grid redundancy check complete", time: "1h ago", priority: "normal" }
+            ]
+        };
+
+        // Mangalore operating area for the prototype and synthetic response simulation.
+        const NOVA_CITY_CENTER = [12.9141, 74.8560];
+        const CITY_MARKERS = [
+            { id: 'INC-401', type: 'incident', title: 'Urban Flooding - Sector 4', lat: 12.9141, lng: 74.8560, severity: 'critical', desc: 'Water depth 18cm on roadway near critical corridor.', factors: ['Heavy precipitation', 'Clogged stormwater drain D-14', 'Low elevation terrain'], confidence: 89 },
+            { id: 'INC-402', type: 'incident', title: 'Road Hazard & Structural Gap', lat: 12.9050, lng: 74.8580, severity: 'elevated', desc: 'Multiple citizen reports fused. Surface collapse detected.', factors: ['7 Citizen reports', 'CV Drone Scan confirmation'], confidence: 94 },
+            { id: 'INF-204', type: 'infra', title: 'Bridge B-204 Integrity Monitor', lat: 12.9270, lng: 74.8430, status: 'warning', desc: 'Vibration frequency deviation: +14% above baseline during peak transit.', factors: ['Structural sensor strain', 'Last human inspection 92 days ago'], confidence: 78 },
+            { id: 'FAC-101', type: 'service', title: 'Central Metropolitan Hospital H-12', lat: 12.9200, lng: 74.8660, status: 'healthy', operational: '98%', desc: 'Primary trauma center. Power/Water grid healthy.', factors: ['Backup generators tested', 'Access route clear'], confidence: 99 },
+            { id: 'FAC-102', type: 'service', title: 'Water Treatment Plant North', lat: 12.9400, lng: 74.8500, status: 'warning', operational: '88%', desc: 'Pumping station 3 pressure fluctuating.', factors: ['Filter flow delta', 'Automated valve telemetry'], confidence: 85 },
+            { id: 'REP-801', type: 'report', title: 'Citizen Report: Storm Drain Overflow', lat: 12.9000, lng: 74.8700, status: 'unverified', desc: 'Debris blocking outflow grate on 5th Ave.', factors: ['User photo attached', 'Single source'], confidence: 62 }
+        ];
+
+        function getT(key) {
+            return I18N[state.currentLang][key] || I18N['en'][key] || key;
+        }
+
+        function updateLang(lang) {
+            state.currentLang = lang;
+            renderApp();
+        }
+
+        function setActiveTab(tab) {
+            if (!state.authenticated) {
+                if (tab === 'landing') { state.roleChooserOpen = false; state.pendingTab = 'overview'; renderApp(); return; }
+                openRoleChooser(tab);
+                return;
+            }
+            if (tab === 'landing') { returnToWelcome(); return; }
+            state.activeTab = tab;
+            state.isLandingView = false;
+            renderApp();
+            if (tab === 'map' || tab === 'overview') setTimeout(initLeafletMap, 150);
+        }
+
+        function openRoleChooser(tab = 'overview') {
+            state.pendingTab = tab;
+            state.roleChooserOpen = true;
+            renderApp();
+        }
+
+        function returnToWelcome() {
+            state.authenticated = false;
+            state.roleChooserOpen = false;
+            state.pendingTab = 'overview';
+            state.isLandingView = true;
+            state.notificationsOpen = false;
+            state.searchModalOpen = false;
+            renderApp();
+        }
+
+        function renderApp() {
+            const app = document.getElementById('app');
+            if (!state.authenticated) {
+                if (state.roleChooserOpen) app.innerHTML = renderAuthScreen();
+                else {
+                    app.innerHTML = renderLandingPage();
+                    setTimeout(initGoogleMap, 100);
+                    if (!state.locationRequestStarted) {
+                        state.locationRequestStarted = true;
+                        setTimeout(() => requestCurrentLocation(true), 350);
+                    }
+                }
+                return;
+            }
+            
+            if (state.isLandingView) {
+                app.innerHTML = renderLandingPage();
+                setTimeout(initGoogleMap, 100);
+                return;
+            }
+
+            app.innerHTML = `
+                ${renderTopBar()}
+                <div class="flex flex-1 overflow-hidden relative">
+                    ${renderSidebar()}
+                    <main class="flex-1 overflow-y-auto bg-navy-950 p-4 md:p-6 space-y-6 relative">
+                        ${renderLiveTicker()}
+                        ${renderMainTabContent()}
+                    </main>
+                </div>
+                ${renderNotificationsDrawer()}
+                ${renderSearchModal()}
+            `;
+
+            // Post-render attachments
+            if (state.activeTab === 'overview' || state.activeTab === 'map') {
+                setTimeout(initLeafletMap, 100);
+            }
+            if (state.activeTab === 'analytics') {
+                setTimeout(initAnalyticsCharts, 100);
+            }
+        }
+
+        function renderTopBar() {
+            return `
+                <header class="bg-navy-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-30 sticky top-0 shadow-md">
+                    <div class="flex items-center space-x-4">
+                        <button onclick="setActiveTab('overview')" class="flex items-center space-x-3 group">
+                            <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500 group-hover:text-navy-950 transition">
+                                <i class="fa-solid fa-shield-halved text-lg"></i>
+                            </div>
+                            <div class="text-left">
+                                <h1 class="text-sm font-bold tracking-wider text-slate-100 flex items-center gap-2">
+                                    CITYSHIELD <span class="text-cyan-400 text-xs px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-800">RESILIENCE</span>
+                                </h1>
+                                <p class="text-[10px] text-slate-400 font-mono tracking-tight">${getT('tagline')}</p>
+                            </div>
+                        </button>
+                        
+                        <div class="hidden lg:flex items-center space-x-2 pl-4 border-l border-slate-800 text-xs text-slate-300">
+                            <i class="fa-solid fa-location-dot text-cyan-400"></i>
+                            <span class="font-medium" data-header-location>${headerLocationLabel()}</span>
+                            <span class="text-slate-600">|</span>
+                            <span class="font-mono text-slate-400">14:32:08 UTC</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <!-- Global Live Search Button -->
+                        <button onclick="state.searchModalOpen = true; renderApp();" class="hidden sm:flex items-center space-x-2 bg-navy-950 border border-slate-700 hover:border-cyan-500/50 px-3 py-1.5 rounded-lg text-xs text-slate-400 transition w-48 lg:w-64">
+                            <i class="fa-solid fa-magnifying-glass text-slate-500"></i>
+                            <span class="truncate">${getT('searchPlaceholder')}</span>
+                            <kbd class="ml-auto bg-slate-800 text-[10px] px-1.5 py-0.5 rounded text-slate-400 font-mono">⌘K</kbd>
+                        </button>
+
+                        <!-- System Operational Status -->
+                        <div class="hidden md:flex items-center space-x-2 bg-emerald-950/40 border border-emerald-800/60 px-2.5 py-1 rounded-full text-xs text-emerald-400">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span class="font-medium">${getT('sysStatus')}</span>
+                        </div>
+
+                        <!-- Language Switcher -->
+                        <div class="relative">
+                            <select onchange="updateLang(this.value)" class="bg-navy-950 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                                <option value="en" ${state.currentLang==='en'?'selected':''}>EN 🇺🇸</option>
+                                <option value="hi" ${state.currentLang==='hi'?'selected':''}>HI 🇮🇳</option>
+                                <option value="kn" ${state.currentLang==='kn'?'selected':''}>KN 🇮🇳</option>
+                                <option value="bn" ${state.currentLang==='bn'?'selected':''}>BN 🇧🇩</option>
+                                <option value="es" ${state.currentLang==='es'?'selected':''}>ES 🇪🇸</option>
+                                <option value="fr" ${state.currentLang==='fr'?'selected':''}>FR 🇫🇷</option>
+                                <option value="de" ${state.currentLang==='de'?'selected':''}>DE 🇩🇪</option>
+                                <option value="pt" ${state.currentLang==='pt'?'selected':''}>PT 🇧🇷</option>
+                                <option value="ar" ${state.currentLang==='ar'?'selected':''}>AR 🇸🇦</option>
+                                <option value="zh" ${state.currentLang==='zh'?'selected':''}>ZH 🇨🇳</option>
+                                <option value="ja" ${state.currentLang==='ja'?'selected':''}>JA 🇯🇵</option>
+                            </select>
+                        </div>
+
+                        <!-- Notification Trigger -->
+                        <button onclick="state.notificationsOpen = !state.notificationsOpen; renderApp();" class="relative p-2 rounded-lg bg-navy-950 border border-slate-700 hover:text-cyan-400 transition text-slate-300">
+                            <i class="fa-regular fa-bell text-sm"></i>
+                            <span class="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">${state.activeNotifications.length}</span>
+                        </button>
+
+                        <!-- User Badge -->
+                        <button onclick="logout()" title="Sign out" class="flex items-center space-x-2 border-l border-slate-800 pl-3 text-left hover:opacity-80">
+                            <div class="w-7 h-7 rounded-full bg-cyan-900/60 border border-cyan-500 flex items-center justify-center text-cyan-300 text-xs font-bold">${state.userRole.slice(0,2).toUpperCase()}</div>
+                            <div class="hidden xl:block">
+                                <div class="text-xs font-medium text-slate-200">${state.userName}</div>
+                                <div class="text-[9px] text-cyan-400 uppercase font-mono">${state.userRole} · Sign out</div>
+                            </div>
+                        </button>
+
+                        <!-- Demo Badge -->
+                        <span class="bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono hidden sm:inline-block">
+                            DEMO
+                        </span>
+                    </div>
+                </header>
+            `;
+        }
+
+        function renderSidebar() {
+            const navItems = [
+                { id: 'overview', label: 'Overview Dashboard', icon: 'fa-gauge-high' },
+                { id: 'map', label: 'Live City Map', icon: 'fa-map-location-dot' },
+                { id: 'simulator', label: 'Disaster Simulator', icon: 'fa-volcano', badge: 'WOW' },
+                { id: 'incidents', label: 'Incident Command', icon: 'fa-triangle-exclamation' },
+                { id: 'reports', label: 'Citizen Report Center', icon: 'fa-users-viewfinder' },
+                { id: 'risk', label: 'Flood & Risk Intelligence', icon: 'fa-cloud-showers-heavy' },
+                { id: 'infra', label: 'Infrastructure Health', icon: 'fa-bridge-water' },
+                { id: 'services', label: 'Essential Services', icon: 'fa-hospital' },
+                { id: 'ai-center', label: 'AI Response Center', icon: 'fa-brain' },
+                { id: 'alerts', label: 'Emergency Alerts', icon: 'fa-bullhorn' },
+                { id: 'analytics', label: 'City Analytics', icon: 'fa-chart-line' },
+                { id: 'audit', label: 'Audit & Evidence Trail', icon: 'fa-square-check' },
+                { id: 'settings', label: 'Settings & Roles', icon: 'fa-sliders' }
+            ];
+
+            return `
+                <aside class="w-64 bg-navy-900 border-r border-slate-800 flex flex-col justify-between hidden md:flex shrink-0 z-20">
+                    <div class="p-3 space-y-1">
+                        <div class="px-3 py-2 text-[10px] font-mono tracking-wider text-slate-400 uppercase">Command Navigation</div>
+                        ${navItems.map(item => `
+                            <button onclick="setActiveTab('${item.id}')" 
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${state.activeTab === item.id ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}">
+                                <div class="flex items-center space-x-3 truncate">
+                                    <i class="fa-solid ${item.icon} w-4 text-center ${state.activeTab === item.id ? 'text-cyan-400' : 'text-slate-500'}"></i>
+                                    <span class="truncate">${item.label}</span>
+                                </div>
+                                ${item.badge ? `<span class="bg-cyan-500 text-navy-950 font-bold text-[9px] px-1.5 py-0.2 rounded font-mono">${item.badge}</span>` : ''}
+                            </button>
+                        `).map(x => x).join('')}
+                    </div>
+
+                    <div class="p-3 border-t border-slate-800 bg-navy-950/50 space-y-2">
+                        <div class="flex items-center space-x-2 text-xs text-slate-300">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                            <span class="font-semibold text-slate-200 text-[11px] truncate">${getT('org')}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 flex justify-between font-mono">
+                            <span>Level 4 Access</span>
+                            <span class="text-emerald-400">● Live Feed</span>
+                        </div>
+                    </div>
+                </aside>
+            `;
+        }
+
+        function renderLiveTicker() {
+            return `
+                <div class="bg-navy-900/80 border border-cyan-900/40 rounded-lg px-4 py-2 flex items-center justify-between text-xs text-slate-300 shadow-inner">
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <span class="flex items-center space-x-1.5 text-cyan-400 font-bold text-[11px] shrink-0 font-mono">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                            <span>${getT('liveTicker')}</span>
+                        </span>
+                        <span class="text-slate-600">|</span>
+                        <div id="tickerText" class="truncate text-slate-300 font-mono text-[11px]">
+                            ${state.liveTickerEvents[0]}
+                        </div>
+                    </div>
+                    <button onclick="rotateTicker()" class="text-slate-500 hover:text-cyan-400 text-xs shrink-0 ml-2">
+                        <i class="fa-solid fa-rotate text-xs"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function rotateTicker() {
+            state.liveTickerEvents.push(state.liveTickerEvents.shift());
+            const el = document.getElementById('tickerText');
+            if (el) el.innerText = state.liveTickerEvents[0];
+        }
+
+        function renderMainTabContent() {
+            switch(state.activeTab) {
+                case 'overview': return renderOverviewDashboard();
+                case 'map': return renderLiveCityMapView();
+                case 'simulator': return renderDisasterSimulatorView();
+                case 'incidents': return renderIncidentCommandView();
+                case 'reports': return renderCitizenReportsView();
+                case 'risk': return renderRiskIntelligenceView();
+                case 'infra': return renderInfrastructureHealthView();
+                case 'services': return renderEssentialServicesView();
+                case 'ai-center': return renderAiResponseCenterView();
+                case 'alerts': return renderEmergencyAlertsView();
+                case 'analytics': return renderAnalyticsView();
+                case 'audit': return renderAuditTrailView();
+                case 'settings': return renderSettingsView();
+                default: return renderOverviewDashboard();
+            }
+        }
+
+        function renderOverviewDashboard() {
+            return `
+                <div class="space-y-6">
+                    <!-- Page Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-100 tracking-tight">Urban Resilience Overview</h2>
+                            <p class="text-xs text-slate-400">Real-time cross-domain intelligence across infrastructure, flood risks, and essential services.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="setActiveTab('simulator')" class="bg-cyan-500 hover:bg-cyan-400 text-navy-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-2 shadow-lg shadow-cyan-500/20 transition">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Run Disaster Scenario</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Top KPI Cards Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                        ${renderKpiCard(getT('activeIncidents'), '24', '+3 today', 'fa-triangle-exclamation', 'text-amber-400', 'bg-amber-950/30 border-amber-800/40')}
+                        ${renderKpiCard(getT('highRiskZones'), '6', '2 Critical', 'fa-shield-cat', 'text-red-400', 'bg-red-950/30 border-red-800/40')}
+                        ${renderKpiCard(getT('infraAlerts'), '11', 'Inspection Req', 'fa-bridge', 'text-yellow-400', 'bg-yellow-950/30 border-yellow-800/40')}
+                        ${renderKpiCard(getT('essentialServices'), '94%', 'Optimal', 'fa-hospital', 'text-emerald-400', 'bg-emerald-950/30 border-emerald-800/40')}
+                        ${renderKpiCard(getT('citizenReports'), '138', '5 Pending Fusion', 'fa-users', 'text-cyan-400', 'bg-cyan-950/30 border-cyan-800/40')}
+                        ${renderKpiCard(getT('aiRecs'), '17', 'Action Req', 'fa-brain', 'text-purple-400', 'bg-purple-950/30 border-purple-800/40')}
+                    </div>
+
+                    <!-- Main Hero GIS Map & Details Split -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 glass-panel rounded-xl p-4 flex flex-col space-y-3 relative">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fa-solid fa-map text-cyan-400 text-sm"></i>
+                                    <h3 class="text-sm font-bold text-slate-200">Live Spatial GIS Command Layer</h3>
+                                </div>
+                                <!-- Map Layers Toggle -->
+                                <div class="flex flex-wrap gap-1 text-[11px]">
+                                    <button onclick="toggleMapLayer('risk')" class="px-2 py-0.5 rounded border ${state.mapLayers.risk?'bg-cyan-950 border-cyan-500 text-cyan-300':'bg-navy-950 border-slate-700 text-slate-500'}">Risk</button>
+                                    <button onclick="toggleMapLayer('infrastructure')" class="px-2 py-0.5 rounded border ${state.mapLayers.infrastructure?'bg-cyan-950 border-cyan-500 text-cyan-300':'bg-navy-950 border-slate-700 text-slate-500'}">Infra</button>
+                                    <button onclick="toggleMapLayer('flood')" class="px-2 py-0.5 rounded border ${state.mapLayers.flood?'bg-cyan-950 border-cyan-500 text-cyan-300':'bg-navy-950 border-slate-700 text-slate-500'}">Flood</button>
+                                    <button onclick="toggleMapLayer('services')" class="px-2 py-0.5 rounded border ${state.mapLayers.services?'bg-cyan-950 border-cyan-500 text-cyan-300':'bg-navy-950 border-slate-700 text-slate-500'}">Services</button>
+                                </div>
+                            </div>
+                            <div id="gisMap" class="w-full h-96 rounded-lg border border-slate-800 z-10"></div>
+                        </div>
+
+                        <!-- Right Side Evidence & Quick Action Context -->
+                        <div class="glass-panel rounded-xl p-4 flex flex-col space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                    <i class="fa-solid fa-microscope text-cyan-400"></i> Evidence & Context
+                                </h3>
+                                <span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono">Select Marker</span>
+                            </div>
+
+                            <div id="mapDetailPanel" class="flex-1 text-xs text-slate-300 space-y-3 overflow-y-auto">
+                                ${state.selectedMapItem ? renderSelectedMapItemDetail(state.selectedMapItem) : `
+                                    <div class="text-center py-12 text-slate-500 space-y-2">
+                                        <i class="fa-solid fa-hand-pointer text-2xl text-slate-600 animate-bounce"></i>
+                                        <p>Click any map marker or flood polygon to view explainable AI factors and evidence breakdown.</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderKpiCard(title, val, trend, icon, colorClass, borderClass) {
+            return `
+                <div class="glass-panel rounded-xl p-3 border ${borderClass} hover:border-cyan-500/50 transition cursor-pointer" onclick="setActiveTab('incidents')">
+                    <div class="flex items-center justify-between text-slate-400 mb-1">
+                        <span class="text-[11px] font-medium truncate">${title}</span>
+                        <i class="fa-solid ${icon} ${colorClass} text-xs"></i>
+                    </div>
+                    <div class="text-lg font-bold text-slate-100 font-mono">${val}</div>
+                    <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+                        <span>${trend}</span>
+                        <svg class="w-8 h-3 text-cyan-400" viewBox="0 0 30 10">
+                            <path d="M0,8 Q7,2 15,6 T30,2" fill="none" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleMapLayer(layerKey) {
+            state.mapLayers[layerKey] = !state.mapLayers[layerKey];
+            if (layerKey === 'risk') state.mapLayers.incidents = state.mapLayers.risk;
+            renderApp();
+        }
+
+        function renderSelectedMapItemDetail(item) {
+            return `
+                <div class="space-y-3">
+                    <div class="bg-navy-950 p-2.5 rounded-lg border border-slate-700">
+                        <div class="text-[10px] text-cyan-400 font-mono font-bold uppercase">${item.type} • ID: ${item.id}</div>
+                        <div class="text-sm font-bold text-slate-100 mt-0.5">${item.title}</div>
+                        <p class="text-slate-300 mt-1 text-[11px]">${item.desc}</p>
+                    </div>
+
+                    <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                        <div class="text-[11px] font-bold text-slate-200 flex justify-between">
+                            <span>AI Confidence Score</span>
+                            <span class="text-cyan-400 font-mono">${item.confidence}%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-cyan-500 h-full" style="width: ${item.confidence}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <div class="text-[11px] font-bold text-slate-400">Contributing Evidence Factors:</div>
+                        <ul class="space-y-1 text-[11px]">
+                            ${item.factors.map(f => `
+                                <li class="flex items-start space-x-2 text-slate-300">
+                                    <i class="fa-solid fa-circle-dot text-[8px] text-cyan-400 mt-1"></i>
+                                    <span>${f}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-800 flex gap-2">
+                        <button onclick="approveAction('${item.id}')" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-1.5 rounded text-xs transition">
+                            Initiate Dispatch
+                        </button>
+                        <button onclick="state.selectedMapItem = null; renderApp();" class="px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        let googleMapInstance = null;
+        let googleMapMarkers = [];
+        let googleMapsLoaded = false;
+        let userLocationMarker = null;
+        let userAccuracyCircle = null;
+        let directionsService = null;
+        let directionsRenderer = null;
+        let responderMarkers = [];
+
+        function showMapFallback() {
+            document.querySelectorAll('#gisMap, #landingMap').forEach(container => {
+                if (!container.dataset.mapReady && !container.querySelector('.map-fallback')) {
+                    container.innerHTML = `<div class="map-fallback h-full flex items-center justify-center p-8 text-center" style="background: radial-gradient(circle at center, rgba(34,211,238,.16), transparent 48%), #0b1724"><div><i class="fa-solid fa-map-location-dot text-3xl text-cyan-300 mb-3"></i><div class="text-sm font-bold text-slate-200">Map library could not be loaded</div><div class="text-[11px] text-slate-500 mt-2 max-w-xs">Check your internet connection and allow the Leaflet and Esri map services to load.</div></div></div>`;
+                }
+            });
+        }
+
+        function modifyRecommendation() {
+            state.activeNotifications.unshift({ id: Date.now(), title: 'AI recommendation held for review', detail: 'Plan marked for human modification before dispatch.', time: 'just now', priority: 'medium' });
+            state.activeNotifications = state.activeNotifications.slice(0, 8);
+            state.auditLogs.unshift({ id: 'AUD-' + Math.floor(1000 + Math.random() * 9000), time: new Date().toISOString().substring(11, 19) + ' UTC', event: 'AI Recommendation Held for Human Modification', actor: 'Operations Administrator', status: 'REVIEW', impact: 'No automated action taken' });
+            renderApp();
+        }
+
+        function dispatchEmergencyBroadcast() {
+            state.activeNotifications.unshift({ id: Date.now(), title: 'Emergency broadcast dispatched', detail: 'Zone 4 advisory sent to configured mobile and command channels.', time: 'just now', priority: 'high' });
+            state.activeNotifications = state.activeNotifications.slice(0, 8);
+            state.auditLogs.unshift({ id: 'AUD-' + Math.floor(1000 + Math.random() * 9000), time: new Date().toISOString().substring(11, 19) + ' UTC', event: 'Emergency Broadcast Dispatched', actor: 'Operations Administrator', status: 'SENT', impact: 'Zone 4 residents notified' });
+            speakAlert('Emergency broadcast dispatched to Zone 4.');
+            renderApp();
+        }
+
+        function runGlobalSearch(query) {
+            const target = document.getElementById('searchResults');
+            if (!target) return;
+            const q = query.trim().toLowerCase();
+            if (!q) { target.textContent = 'Quick Suggestions: Central Hospital, Bridge B-204, Zone 4 Flood'; return; }
+            const results = CITY_MARKERS.filter(item => `${item.id} ${item.title} ${item.desc}`.toLowerCase().includes(q));
+            target.innerHTML = results.length ? results.map(item => `<button onclick="state.searchModalOpen=false; state.selectedMapItem=CITY_MARKERS.find(x=>x.id==='${item.id}'); setActiveTab('map');" class="block w-full text-left py-2 text-slate-300 hover:text-cyan-300">${item.id} · ${item.title}</button>`).join('') : 'No matching incidents or facilities.';
+        }
+
+        // Leaflet is loaded without an API key, so the public map is not subject to a shared Google demo quota.
+
+        function markerColor(item) {
+            if (item.severity === 'critical' || item.status === 'warning') return '#ef4444';
+            if (item.status === 'healthy') return '#10b981';
+            return '#22d3ee';
+        }
+
+        let cityBaseLayer = null;
+        let citySatelliteLayer = null;
+        let cityLabelLayer = null;
+        let routeLine = null;
+        let routeGeometry = null;
+
+        function getMapCenter() { return state.mapCenter || NOVA_CITY_CENTER; }
+
+        function mapContextMessage() {
+            if (state.mapCenterMode === 'device' && state.userLocation) return 'Centered on you · Mangalore incident data is synthetic';
+            if (state.mapCenterMode === 'browse') return 'Browsing this area · demo incidents remain around Mangalore';
+            return 'Mangalore demo operations area · incident data is synthetic';
+        }
+
+        function headerLocationLabel() {
+            if (state.mapCenterMode === 'device' && state.userLocation) return 'Your current location';
+            if (state.mapCenterMode === 'browse') return 'Selected map area';
+            return 'Mangalore Resilience HQ';
+        }
+
+        function locationStatusMessage() {
+            if (state.locationStatus === 'requesting') return 'Finding your location…';
+            if (state.userLocation) return 'CURRENT LOCATION';
+            if (state.locationStatus === 'denied') return 'Location blocked · demo map';
+            if (state.locationStatus === 'insecure') return 'HTTPS needed · demo map';
+            if (state.locationStatus === 'unsupported') return 'Location unavailable · demo map';
+            if (state.locationStatus === 'unavailable') return 'Could not locate · demo map';
+            return 'Use my location · Mangalore fallback';
+        }
+
+        function refreshMapLocationText() {
+            document.querySelectorAll('[data-location-status]').forEach(el => { el.textContent = locationStatusMessage(); });
+            document.querySelectorAll('[data-map-context]').forEach(el => { el.textContent = mapContextMessage(); });
+            document.querySelectorAll('[data-header-location]').forEach(el => { el.textContent = headerLocationLabel(); });
+        }
+
+        function drawCurrentLocation(map = googleMapInstance) {
+            if (userLocationMarker) { userLocationMarker.remove(); userLocationMarker = null; }
+            if (userAccuracyCircle) { userAccuracyCircle.remove(); userAccuracyCircle = null; }
+            if (!map || !state.userLocation || !window.L) return;
+            const point = [state.userLocation.lat, state.userLocation.lng];
+            const accuracy = Math.max(25, Math.min(Number(state.userLocation.accuracy) || 80, 5000));
+            userAccuracyCircle = L.circle(point, { radius: accuracy, color: '#22d3ee', opacity: .75, weight: 1, fillColor: '#22d3ee', fillOpacity: .13 }).addTo(map);
+            userLocationMarker = L.marker(point, { icon: makeCityDot('#06b6d4', true), title: 'Your current location', zIndexOffset: 2000 }).addTo(map).bindPopup('Your current location (this page only)');
+        }
+
+        function makeCityDot(color, current = false) {
+            return L.divIcon({ className: '', html: `<div class="cityshield-dot${current ? ' current' : ''}" style="${current ? '' : `background:${color}`}" ></div>`, iconSize: current ? [14, 14] : [16, 16], iconAnchor: current ? [7, 7] : [8, 8] });
+        }
+
+        function mapMarkerLayerEnabled(item) {
+            if (item.type === 'incident') return state.mapLayers.risk && state.mapLayers.incidents;
+            if (item.type === 'infra') return state.mapLayers.infrastructure;
+            if (item.type === 'service') return state.mapLayers.services;
+            if (item.type === 'report') return state.mapLayers.reports;
+            return true;
+        }
+
+        function initGoogleMap() {
+            const container = document.getElementById('gisMap') || document.getElementById('landingMap');
+            if (!container || !window.L) return;
+            const isLanding = container.id === 'landingMap';
+            if (googleMapInstance && googleMapInstance.getContainer && googleMapInstance.getContainer() === container) {
+                const existingMap = googleMapInstance;
+                setTimeout(() => { if (googleMapInstance === existingMap) existingMap.invalidateSize(); }, 100);
+                return;
+            }
+            if (routeLine) { routeLine.remove(); routeLine = null; }
+            clearWeatherOverlay();
+            clearAqiOverlay();
+            if (radarMapType) { radarMapType.remove(); radarMapType = null; }
+            if (googleMapInstance && googleMapInstance.remove) googleMapInstance.remove();
+            googleMapMarkers = [];
+            responderMarkers = [];
+            const center = state.mapView?.center || state.mapCenter || NOVA_CITY_CENTER;
+            const zoom = state.mapView?.zoom ?? (isLanding ? 12 : 13);
+            const map = L.map(container, { zoomControl: false, attributionControl: true, preferCanvas: true, minZoom: 3, maxZoom: 19 }).setView(center, zoom);
+            googleMapInstance = map;
+            map.on('moveend', () => {
+                if (googleMapInstance !== map) return;
+                const c = map.getCenter();
+                state.mapView = { center: [c.lat, c.lng], zoom: map.getZoom() };
+                state.mapCenter = [c.lat, c.lng];
+                const deviceDistance = state.userLocation ? map.distance(c, [state.userLocation.lat, state.userLocation.lng]) : Infinity;
+                const demoDistance = map.distance(c, NOVA_CITY_CENTER);
+                state.mapCenterMode = deviceDistance < 800 ? 'device' : demoDistance < 1800 ? 'demo' : 'browse';
+                refreshMapLocationText();
+            });
+            container.dataset.mapReady = 'true';
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            const maxNativeZoom = 17;
+            cityBaseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxNativeZoom, maxZoom: 19, keepBuffer: 2,
+                attribution: 'Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCan, Esri Japan, METI, Esri China (Hong Kong), Esri Korea, Esri (Thailand), NGCC, &copy; OpenStreetMap contributors, and the GIS User Community'
+            });
+            citySatelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxNativeZoom, maxZoom: 19, keepBuffer: 2,
+                attribution: 'Imagery: Esri, Vantor, Earthstar Geographics, and the GIS User Community'
+            });
+            const referenceAttribution = 'Labels and roads: Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community';
+            const placesLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom, maxZoom: 19, opacity: .96, keepBuffer: 2, attribution: referenceAttribution });
+            const roadLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom, maxZoom: 19, opacity: .94, keepBuffer: 2, attribution: referenceAttribution });
+            cityLabelLayer = L.layerGroup([placesLabels, roadLabels]);
+            if (state.mapType === 'hybrid') { citySatelliteLayer.addTo(map); cityLabelLayer.addTo(map); }
+            else cityBaseLayer.addTo(map);
+
+            L.marker(NOVA_CITY_CENTER, { icon: makeCityDot('#f8fafc', true), zIndexOffset: 1000, title: 'Mangalore Resilience HQ' }).addTo(map).bindPopup('<b>Mangalore Resilience HQ</b><br>Synthetic demo command-center location');
+            if (!isLanding) {
+                if (state.mapLayers.flood || state.simulation.active) {
+                    L.polygon([[12.9080,74.8480],[12.9250,74.8500],[12.9280,74.8700],[12.9050,74.8720]], {
+                        color: state.simulation.active ? getSimulationScenario().color : '#22d3ee', weight: 2, fillColor: state.simulation.active ? getSimulationScenario().color : '#22d3ee', fillOpacity: state.simulation.active ? .35 : .2
+                    }).addTo(map).bindPopup(state.simulation.active ? `Illustrative ${getSimulationScenario().name} impact area` : 'Illustrative flood-risk zone · demo data');
+                }
+                CITY_MARKERS.filter(mapMarkerLayerEnabled).forEach(item => {
+                    const marker = L.marker([item.lat, item.lng], { icon: makeCityDot(markerColor(item)), title: item.title }).addTo(map);
+                    marker.bindPopup(`<b>${item.title}</b><br>${item.id} · ${item.severity || item.status || item.type}<br>${item.desc}`);
+                    marker.on('click', () => { state.selectedMapItem = item; renderApp(); });
+                    googleMapMarkers.push(marker);
+                });
+                state.simulatedMapAlerts.forEach(alert => {
+                    const marker = L.marker([alert.position.lat, alert.position.lng], { icon: makeCityDot('#f97316'), title: alert.title }).addTo(map).bindPopup(`<b>${alert.title}</b><br>${alert.detail}`);
+                    googleMapMarkers.push(marker);
+                });
+                responderMarkers = state.responders.map(unit => {
+                    const marker = L.marker([unit.lat, unit.lng], { icon: makeCityDot(unit.color), title: `${unit.id} · ${unit.name}` });
+                    marker.bindPopup(`${unit.id} · ${unit.name}<br>${unit.status}`);
+                    if (state.responderTrackingEnabled) marker.addTo(map);
+                    return marker;
+                });
+            } else if (!state.userLocation) {
+                const focal = CITY_MARKERS[0];
+                L.marker([focal.lat, focal.lng], { icon: makeCityDot('#ef4444'), title: focal.title }).addTo(map).bindPopup(`<b>${focal.title}</b><br>${focal.desc}`);
+                L.circle([focal.lat, focal.lng], { radius: 1200, color: '#22d3ee', weight: 1, opacity: .45, fillColor: '#22d3ee', fillOpacity: .08 }).addTo(map);
+            }
+            drawCurrentLocation(map);
+            renderWeatherOverlay();
+            renderAqiOverlay();
+            if (state.radarEnabled) addRadarLayer();
+            if (routeGeometry && !isLanding) routeLine = L.geoJSON(routeGeometry, { style: { color: '#f97316', weight: 5, opacity: .9 } }).addTo(map);
+            refreshMapLocationText();
+            setTimeout(() => { if (googleMapInstance === map) map.invalidateSize(); }, 120);
+        }
+
+        function centerMapOnDemo() {
+            const center = [NOVA_CITY_CENTER[0], NOVA_CITY_CENTER[1]];
+            const zoom = 13;
+            state.mapCenter = center;
+            state.mapCenterMode = 'demo';
+            state.mapView = { center, zoom };
+            if (googleMapInstance) googleMapInstance.setView(center, zoom);
+            refreshMapLocationText();
+        }
+
+        function requestCurrentLocation(quiet = false) {
+            if (!navigator.geolocation) {
+                state.locationStatus = 'unsupported'; refreshMapLocationText();
+                if (!quiet) alert('This browser does not provide device location. The Mangalore demo map is still available.');
+                return;
+            }
+            if (!window.isSecureContext) {
+                state.locationStatus = 'insecure'; refreshMapLocationText();
+                if (!quiet) alert('For device location, open this page over HTTPS or localhost. The Mangalore demo map is still available.');
+                return;
+            }
+            state.locationStatus = 'requesting'; refreshMapLocationText();
+            navigator.geolocation.getCurrentPosition(position => {
+                const point = [position.coords.latitude, position.coords.longitude];
+                state.userLocation = { lat: point[0], lng: point[1], accuracy: position.coords.accuracy || 80 };
+                state.mapCenter = point;
+                state.mapCenterMode = 'device';
+                const zoom = Math.max(15, googleMapInstance?.getZoom?.() || 15);
+                state.mapView = { center: point, zoom: Math.min(zoom, 19) };
+                if (googleMapInstance) {
+                    googleMapInstance.setView(point, state.mapView.zoom);
+                    drawCurrentLocation(googleMapInstance);
+                }
+                state.locationStatus = 'located';
+                refreshMapLocationText();
+            }, error => {
+                state.locationStatus = error?.code === 1 ? 'denied' : 'unavailable';
+                refreshMapLocationText();
+                if (!quiet) alert(error?.code === 1 ? 'Location access was denied. You can enable it in your browser settings or continue with the Mangalore demo map.' : 'Could not determine your location. The Mangalore demo map is still available.');
+            }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 });
+        }
+
+        function locateUser() { requestCurrentLocation(false); }
+
+        function toggleResponderTracking() {
+            state.responderTrackingEnabled = !state.responderTrackingEnabled;
+            responderMarkers.forEach(marker => {
+                if (state.responderTrackingEnabled) marker.addTo(googleMapInstance);
+                else marker.remove();
+            });
+            renderApp();
+        }
+
+        function updateResponderPositions() {
+            state.responders.forEach((unit, index) => {
+                unit.lat += (Math.random() - .5) * .0015;
+                unit.lng += (Math.random() - .5) * .0015;
+                const marker = responderMarkers[index];
+                if (marker) {
+                    marker.setLatLng([unit.lat, unit.lng]);
+                    if (state.responderTrackingEnabled && googleMapInstance && !googleMapInstance.hasLayer(marker)) marker.addTo(googleMapInstance);
+                    if (!state.responderTrackingEnabled && googleMapInstance && googleMapInstance.hasLayer(marker)) marker.remove();
+                }
+            });
+        }
+
+        function dispatchResource(id) {
+            const resource = state.resourceInventory.find(item => item.id === id);
+            if (!resource || resource.available < 1) { alert('No available units of this type.'); return; }
+            resource.available -= 1; resource.deployed += 1;
+            state.activeNotifications.unshift({ id: Date.now(), title: `${resource.label} dispatched`, detail: `${resource.deployed} deployed · ${resource.available} available`, time: 'just now', priority: 'high' });
+            state.activeNotifications = state.activeNotifications.slice(0, 8);
+            speakAlert(`${resource.label} dispatched to the active incident.`);
+            renderApp();
+        }
+
+        function recallResource(id) {
+            const resource = state.resourceInventory.find(item => item.id === id);
+            if (!resource || resource.deployed < 1) return;
+            resource.available += 1; resource.deployed -= 1;
+            renderApp();
+        }
+
+        function routePoint(id) {
+            if (id === 'current-location') {
+                const p = state.userLocation || { lat: getMapCenter()[0], lng: getMapCenter()[1] };
+                return { lat: p.lat, lng: p.lng };
+            }
+            if (id === 'mangalore-hq') return { lat: NOVA_CITY_CENTER[0], lng: NOVA_CITY_CENTER[1] };
+            const item = CITY_MARKERS.find(marker => marker.id === id);
+            return item ? { lat: item.lat, lng: item.lng } : { lat: NOVA_CITY_CENTER[0], lng: NOVA_CITY_CENTER[1] };
+        }
+
+        async function calculateDispatchRoute() {
+            if (!googleMapInstance) { alert('Open the live map before calculating a dispatch route.'); return; }
+            const origin = routePoint(state.routeOrigin);
+            const destination = routePoint(state.routeDestination);
+            try {
+                const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Route service unavailable');
+                const data = await response.json();
+                const route = data.routes && data.routes[0];
+                if (!route) throw new Error('No route found');
+                if (routeLine) routeLine.remove();
+                routeGeometry = route.geometry;
+                routeLine = L.geoJSON(routeGeometry, { style: { color: '#f97316', weight: 5, opacity: .9 } }).addTo(googleMapInstance);
+                googleMapInstance.fitBounds(routeLine.getBounds(), { padding: [35, 35], maxZoom: 16 });
+                const duration = `${Math.max(1, Math.round(route.duration / 60))} min`;
+                const distance = route.distance >= 1000 ? `${(route.distance / 1000).toFixed(1)} km` : `${Math.round(route.distance)} m`;
+                state.activeNotifications.unshift({ id: Date.now(), title: 'Dispatch Route Calculated', detail: `Fastest route · ${duration} · ${distance}`, time: 'just now', priority: 'normal' });
+                state.activeNotifications = state.activeNotifications.slice(0, 8);
+                speakAlert('Dispatch route calculated. Estimated response time ' + duration);
+                renderApp();
+            } catch (error) {
+                alert('Fastest dispatch route is temporarily unavailable. Please try again.');
+            }
+        }
+
+        let radarMapType = null;
+        let radarTileTemplatePromise = null;
+        let aqiShapes = [];
+        let aqiLabels = [];
+
+        function toggleRadarLayer() {
+            state.radarEnabled = !state.radarEnabled;
+            renderApp();
+        }
+
+        async function addRadarLayer() {
+            const targetMap = googleMapInstance;
+            if (!targetMap || !state.radarEnabled) return;
+            try {
+                if (!radarTileTemplatePromise) {
+                    radarTileTemplatePromise = fetch('https://api.rainviewer.com/public/weather-maps.json').then(response => {
+                        if (!response.ok) throw new Error('Radar service unavailable');
+                        return response.json();
+                    }).then(data => {
+                        const frames = data.radar?.past || [];
+                        const latest = frames[frames.length - 1];
+                        if (!latest) throw new Error('No radar frame');
+                        return `https://tilecache.rainviewer.com${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
+                    }).catch(error => { radarTileTemplatePromise = null; throw error; });
+                }
+                const url = await radarTileTemplatePromise;
+                if (targetMap !== googleMapInstance || !state.radarEnabled) return;
+                if (radarMapType) radarMapType.remove();
+                radarMapType = L.tileLayer(url, { opacity: .58, maxNativeZoom: 10, maxZoom: 19, attribution: 'Weather radar &copy; RainViewer' }).addTo(targetMap);
+            } catch (error) {
+                state.radarEnabled = false;
+                if (!state.isLandingView && state.authenticated) renderApp();
+            }
+        }
+
+        function clearAqiOverlay() {
+            aqiShapes.forEach(shape => shape.remove());
+            aqiLabels.forEach(label => label.remove());
+            aqiShapes = [];
+            aqiLabels = [];
+        }
+
+        function renderAqiOverlay() {
+            clearAqiOverlay();
+            if (!state.aqiEnabled || !googleMapInstance || !window.L) return;
+            const value = Number(state.aqi.value);
+            const color = value > 150 ? '#ef4444' : value > 100 ? '#f59e0b' : value > 50 ? '#facc15' : '#22c55e';
+            aqiShapes.push(L.circle(NOVA_CITY_CENTER, { radius: 2600, color, opacity: .65, weight: 2, fillColor: color, fillOpacity: .12 }).addTo(googleMapInstance));
+            aqiLabels.push(L.marker([NOVA_CITY_CENTER[0] + .012, NOVA_CITY_CENTER[1] + .012], { icon: L.divIcon({ className: 'cityshield-label', html: `AQI ${state.aqi.value} · ${state.aqi.label}`, iconSize: [145, 18] }), interactive: false }).addTo(googleMapInstance));
+        }
+
+        function toggleAqiOverlay() {
+            state.aqiEnabled = !state.aqiEnabled;
+            renderAqiOverlay();
+            renderApp();
+        }
+
+        async function fetchAirQualityData() {
+            const [lat, lng] = NOVA_CITY_CENTER;
+            try {
+                const response = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10,ozone&timezone=auto`);
+                if (!response.ok) throw new Error('AQI feed unavailable');
+                const data = await response.json();
+                const current = data.current || {};
+                const value = Math.round(Number(current.us_aqi ?? 0));
+                state.aqi = { loading: false, value, label: value > 150 ? 'Unhealthy' : value > 100 ? 'Sensitive groups' : value > 50 ? 'Moderate' : 'Good', updated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                renderAqiOverlay();
+                if (!state.isLandingView) renderApp();
+            } catch (error) {
+                state.aqi = { loading: false, value: '--', label: 'AQI unavailable', updated: 'Retrying' };
+                if (!state.isLandingView) renderApp();
+            }
+        }
+
+        function locateUser() {
+            if (!navigator.geolocation) {
+                alert('Location services are not supported by this browser.');
+                return;
+            }
+            if (!googleMapInstance) {
+                setActiveTab('map');
+                setTimeout(locateUser, 500);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(position => {
+                const point = [position.coords.latitude, position.coords.longitude];
+                googleMapInstance.setView(point, 15);
+                if (userLocationMarker) userLocationMarker.remove();
+                if (userAccuracyCircle) userAccuracyCircle.remove();
+                userLocationMarker = L.marker(point, { icon: makeCityDot('#06b6d4', true), title: 'Your current location' }).addTo(googleMapInstance).bindPopup('Your current location');
+                userAccuracyCircle = L.circle(point, { radius: position.coords.accuracy || 80, color: '#22d3ee', opacity: .7, weight: 1, fillColor: '#22d3ee', fillOpacity: .12 }).addTo(googleMapInstance);
+            }, () => alert('Location permission was denied or unavailable. Please allow location access and try again.'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+        }
+
+        let weatherOverlayShapes = [];
+        let weatherOverlayLabels = [];
+
+        function clearWeatherOverlay() {
+            weatherOverlayShapes.forEach(shape => shape.remove());
+            weatherOverlayLabels.forEach(label => label.remove());
+            weatherOverlayShapes = [];
+            weatherOverlayLabels = [];
+        }
+
+        function renderWeatherOverlay() {
+            clearWeatherOverlay();
+            if (!state.weatherOverlay || !googleMapInstance || !window.L) return;
+            const rain = Number(state.weather.precipitation || 0);
+            const temp = Number(state.weather.temp || 20);
+            const zones = [
+                { lat: 12.914, lng: 74.856, radius: 1500, color: rain > 60 ? '#38bdf8' : '#22d3ee', label: rain > 60 ? 'Heavy rain risk' : 'Rain watch' },
+                { lat: 12.927, lng: 74.867, radius: 1100, color: temp > 30 ? '#fb923c' : '#60a5fa', label: temp > 30 ? 'Heat stress watch' : 'Cool air pocket' },
+                { lat: 12.900, lng: 74.848, radius: 900, color: '#a78bfa', label: 'Wind corridor' }
+            ];
+            zones.forEach(zone => {
+                weatherOverlayShapes.push(L.circle([zone.lat, zone.lng], { radius: zone.radius, color: zone.color, opacity: .55, weight: 1, fillColor: zone.color, fillOpacity: .13 }).addTo(googleMapInstance));
+                weatherOverlayLabels.push(L.marker([zone.lat, zone.lng], { icon: L.divIcon({ className: 'cityshield-label', html: zone.label, iconSize: [130, 18] }), interactive: false }).addTo(googleMapInstance));
+            });
+        }
+
+        function toggleMapType() {
+            state.mapType = state.mapType === 'hybrid' ? 'roadmap' : 'hybrid';
+            if (googleMapInstance && cityBaseLayer && citySatelliteLayer && cityLabelLayer) {
+                if (state.mapType === 'hybrid') {
+                    googleMapInstance.removeLayer(cityBaseLayer);
+                    citySatelliteLayer.addTo(googleMapInstance);
+                    cityLabelLayer.addTo(googleMapInstance);
+                } else {
+                    googleMapInstance.removeLayer(citySatelliteLayer);
+                    googleMapInstance.removeLayer(cityLabelLayer);
+                    cityBaseLayer.addTo(googleMapInstance);
+                }
+            }
+            renderApp();
+        }
+
+        function toggleWeatherOverlay() {
+            state.weatherOverlay = !state.weatherOverlay;
+            renderWeatherOverlay();
+            renderApp();
+        }
+
+        async function fetchWeatherData() {
+            const [lat, lng] = NOVA_CITY_CENTER;
+            try {
+                const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,precipitation,rain,wind_speed_10m,weather_code&hourly=precipitation_probability&timezone=auto&forecast_days=1`);
+                if (!response.ok) throw new Error('Weather feed unavailable');
+                const data = await response.json();
+                const current = data.current || {};
+                const code = Number(current.weather_code || 0);
+                const descriptions = { 0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 80: 'Rain showers', 81: 'Rain showers', 82: 'Heavy rain showers', 95: 'Thunderstorm' };
+                const probability = data.hourly?.precipitation_probability?.[0] ?? Math.round(Number(current.precipitation || 0) * 10);
+                state.weather = { loading: false, temp: Math.round(Number(current.temperature_2m ?? 0)), wind: Math.round(Number(current.wind_speed_10m ?? 0)), precipitation: probability, description: descriptions[code] || 'Live conditions', updated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                renderWeatherOverlay();
+                if (!state.isLandingView) renderApp();
+            } catch (error) {
+                state.weather.loading = false;
+                state.weather.description = 'Weather feed unavailable';
+                state.weather.updated = 'Retrying';
+                if (!state.isLandingView) renderApp();
+            }
+        }
+
+        const VOICE_LANGUAGE_OPTIONS = { en: 'en-US', hi: 'hi-IN', kn: 'kn-IN', bn: 'bn-IN', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', ar: 'ar-SA', zh: 'zh-CN', ja: 'ja-JP' };
+
+        function speakAlert(text) {
+            if (!state.voiceAlertsEnabled || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = state.voiceAlertLanguage;
+            utterance.rate = .95;
+            utterance.pitch = 1;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function setVoiceAlertLanguage(lang) {
+            state.voiceAlertLanguage = VOICE_LANGUAGE_OPTIONS[lang] || lang;
+            renderApp();
+        }
+
+        function toggleVoiceAlerts() {
+            state.voiceAlertsEnabled = false;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        }
+
+        function csvEscape(value) {
+            const text = String(value ?? '');
+            return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        }
+
+        function exportAlertLogsCsv() {
+            const rows = [['Timestamp', 'Alert ID', 'Title', 'Detail', 'Priority', 'Source', 'Status']];
+            const notifications = [...state.activeNotifications, ...state.liveTickerEvents.map((event, index) => ({ id: `TICK-${index + 1}`, title: 'Live ticker event', detail: event, time: 'historical', priority: 'info', simulated: true }))];
+            notifications.forEach(item => rows.push([item.time || new Date().toISOString(), item.id || '', item.title || '', item.detail || '', item.priority || '', item.simulated ? 'Automated simulation' : 'Operations feed', 'Recorded']));
+            state.auditLogs.forEach(log => rows.push([log.time, log.id, log.event, log.impact, 'audit', log.actor, log.status]));
+            const csv = rows.map(row => row.map(csvEscape).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `cityshield-mangalore-alert-logs-${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        const SIMULATED_ALERTS = [
+            { title: 'Rain Cell Detected', detail: 'Radar simulation shows a 68% precipitation probability over Zone 4.', priority: 'medium' },
+            { title: 'Drainage Sensor Spike', detail: 'Telemetry D-14 crossed the watch threshold; field verification recommended.', priority: 'high' },
+            { title: 'Citizen Report Clustered', detail: 'Three new reports fused near University Gate and added to INC-402.', priority: 'low' },
+            { title: 'Wind Advisory Simulated', detail: 'Gust corridor projected along the eastern transit route for the next 30 minutes.', priority: 'medium' }
+        ];
+
+        function pushSimulatedAlert() {
+            const template = SIMULATED_ALERTS[state.simulatedAlertIndex % SIMULATED_ALERTS.length];
+            state.simulatedAlertIndex += 1;
+            const position = { lat: NOVA_CITY_CENTER[0] + (Math.random() - 0.5) * 0.045, lng: NOVA_CITY_CENTER[1] + (Math.random() - 0.5) * 0.055 };
+            const alertId = Date.now();
+            state.simulatedMapAlerts.unshift({ id: alertId, position, title: template.title, detail: template.detail });
+            state.simulatedMapAlerts = state.simulatedMapAlerts.slice(0, 12);
+            state.activeNotifications.unshift({ id: alertId, title: template.title, detail: template.detail, time: 'just now', priority: template.priority, simulated: true });
+            state.activeNotifications = state.activeNotifications.slice(0, 8);
+            speakAlert(`${template.priority} emergency alert. ${template.title}. ${template.detail}`);
+            state.liveTickerEvents.unshift(`● ALERT: ${template.title} — ${template.detail}`);
+            state.liveTickerEvents = state.liveTickerEvents.slice(0, 6);
+            if (!state.isLandingView) renderApp();
+        }
+
+        function toggleAutomatedSimulation() { state.automatedSimulation = !state.automatedSimulation; renderApp(); }
+
+        let liveFeedsStarted = false;
+        function startLiveFeeds() {
+            if (liveFeedsStarted) return;
+            liveFeedsStarted = true;
+            fetchWeatherData();
+            fetchAirQualityData();
+            setInterval(fetchWeatherData, 10 * 60 * 1000);
+            setInterval(fetchAirQualityData, 10 * 60 * 1000);
+            setInterval(() => { if (state.automatedSimulation) pushSimulatedAlert(); }, 15000);
+            setInterval(updateResponderPositions, 4000);
+        }
+
+        // Keep existing map call sites stable; the renderer uses Leaflet.
+        function initLeafletMap() { initGoogleMap(); }
+
+        function renderLiveCityMapView() {
+            return `
+                <div class="space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-100">AI Spatial Risk Map</h2>
+                            <p class="text-xs text-slate-400">Place and road labels adapt as you zoom. Synthetic incidents remain in the Mangalore demo area.</p>
+                            <p class="text-[10px] text-cyan-200/80 mt-1" data-map-context>${mapContextMessage()}</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="locateUser()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-location-crosshairs mr-1.5 text-cyan-300"></i>Locate Me</button>
+                            <button onclick="centerMapOnDemo()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-city mr-1.5 text-cyan-300"></i>Mangalore demo</button>
+                            <button onclick="toggleMapType()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-satellite mr-1.5 text-cyan-300"></i>${state.mapType === 'hybrid' ? 'Road map' : 'Satellite + labels'}</button>
+                            <button onclick="toggleWeatherOverlay()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-cloud-sun mr-1.5 text-cyan-300"></i>${state.weatherOverlay ? 'Weather On' : 'Weather Off'}</button>
+                            <button onclick="toggleRadarLayer()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-cloud-rain mr-1.5 text-cyan-300"></i>${state.radarEnabled ? 'Radar On' : 'Radar Off'}</button>
+                            <button onclick="toggleAqiOverlay()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-lungs mr-1.5 text-cyan-300"></i>AQI ${state.aqiEnabled ? 'On' : 'Off'}</button>
+                            <button onclick="toggleAutomatedSimulation()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-shuffle mr-1.5 text-cyan-300"></i>Auto Alerts ${state.automatedSimulation ? 'On' : 'Off'}</button>
+                        </div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4 border border-orange-500/25 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-route text-orange-300 mr-2"></i>Emergency dispatch routing</h3><p class="text-[10px] text-slate-500 mt-1">Calculate a driving response route from your location or the Mangalore demo HQ.</p></div><button onclick="calculateDispatchRoute()" class="bg-orange-500 hover:bg-orange-400 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs transition">Calculate fastest route</button></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2"><select onchange="state.routeOrigin = this.value" class="bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-2"><option value="current-location" ${state.routeOrigin==='current-location'?'selected':''}>My current location</option><option value="mangalore-hq" ${state.routeOrigin==='mangalore-hq'?'selected':''}>Mangalore Resilience HQ</option>${CITY_MARKERS.map(item => `<option value="${item.id}" ${state.routeOrigin===item.id?'selected':''}>${item.title}</option>`).join('')}</select><select onchange="state.routeDestination = this.value" class="bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-2">${CITY_MARKERS.map(item => `<option value="${item.id}" ${state.routeDestination===item.id?'selected':''}>${item.title}</option>`).join('')}</select></div>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div class="glass-panel rounded-xl p-4 border border-cyan-500/20 space-y-3"><div class="flex items-center justify-between"><div><h3 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-satellite-dish text-cyan-300 mr-2"></i>Responder live tracking</h3><p class="text-[10px] text-slate-500 mt-1">Simulated GPS positions refresh every 4 seconds.</p></div><button onclick="toggleResponderTracking()" class="text-[10px] border border-slate-700 rounded px-2 py-1 text-slate-300">${state.responderTrackingEnabled ? 'Tracking On' : 'Tracking Off'}</button></div><div class="space-y-2">${state.responders.map(unit => `<div class="flex items-center justify-between bg-navy-950 border border-slate-800 rounded-lg px-3 py-2 text-[11px]"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${unit.color}"></span><span class="font-mono text-slate-300">${unit.id}</span><span class="text-slate-200">${unit.name}</span></div><span class="text-slate-500">${unit.status}</span></div>`).join('')}</div></div>
+                        <div class="glass-panel rounded-xl p-4 border border-amber-500/20 space-y-3"><div class="flex items-center justify-between"><div><h3 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-boxes-stacked text-amber-300 mr-2"></i>Emergency resource inventory</h3><p class="text-[10px] text-slate-500 mt-1">Manage availability during the active incident.</p></div><span class="text-[10px] font-mono text-amber-300">ACTIVE INCIDENT</span></div><div class="grid grid-cols-2 gap-2">${state.resourceInventory.map(item => `<div class="bg-navy-950 border border-slate-800 rounded-lg p-2"><div class="flex items-center gap-2 text-[11px] text-slate-200"><i class="fa-solid ${item.icon} text-${item.color}-300"></i>${item.label}</div><div class="flex items-end justify-between mt-2"><div><span class="text-lg font-bold text-slate-100">${item.available}</span><span class="text-[10px] text-slate-500"> available</span><div class="text-[10px] text-slate-500">${item.deployed} deployed / ${item.total} total</div></div><div class="flex gap-1"><button onclick="dispatchResource('${item.id}')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] px-2 py-1 rounded">Dispatch</button><button onclick="recallResource('${item.id}')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2 py-1 rounded">Recall</button></div></div></div>`).join('')}</div></div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                            <div class="flex flex-wrap items-center gap-2 text-slate-300"><span class="w-2 h-2 rounded-full bg-cyan-300 animate-pulse"></span> Live weather overlay <span class="text-slate-500">•</span> ${state.weather.loading ? 'Syncing…' : state.weather.description} <span class="text-slate-500">•</span> AQI ${state.aqi.value} (${state.aqi.label})</div>
+                            <div class="font-mono text-slate-500">${state.weather.updated ? 'Updated ' + state.weather.updated : 'Waiting for weather feed'}</div>
+                        </div>
+                        <div id="gisMap" class="google-map-shell w-full h-[600px] rounded-lg border border-slate-800"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSimulationScenario() {
+            const profiles = {
+                rain: { name: 'Extreme rainfall', zones: '6 zones', zoneDetail: 'Zones 4 and 7 at highest illustrative load', roads: '4 corridors', roadDetail: 'Flood-prone demo routes for review', infrastructure: 'Bridge B-204', infrastructureDetail: 'Illustrative inspection-priority estimate', service: 'Hospital H-12', serviceDetail: 'Review ambulance access routes', confidence: '88%', color: '#ef4444', actions: [
+                    { title: 'Drainage crew staging:', detail: 'Stage a demo pump at the simulated low-lying outlet.' },
+                    { title: 'Hospital access review:', detail: 'Review alternate routes to the trauma center.' },
+                    { title: 'Public advisory draft:', detail: 'Prepare a sample standing-water notice for human review.' }
+                ] },
+                storm: { name: 'Severe tropical storm', zones: '9 zones', zoneDetail: 'Coastal and wind-exposed demo zones prioritized', roads: '7 corridors', roadDetail: 'Illustrative wind and surface-water restrictions', infrastructure: 'Coastal bridges', infrastructureDetail: 'Inspection priority elevated in the scenario', service: 'Emergency shelters', serviceDetail: 'Review shelter readiness and access', confidence: '81%', color: '#a855f7', actions: [
+                    { title: 'Shelter readiness review:', detail: 'Review demo shelter capacity and accessible routes.' },
+                    { title: 'Wind corridor check:', detail: 'Flag exposed road links for human assessment.' },
+                    { title: 'Advisory draft:', detail: 'Prepare a sample severe-weather notice for approval.' }
+                ] },
+                quake: { name: 'Seismic tremor', zones: '5 zones', zoneDetail: 'Five illustrative structural-inspection zones prioritized', roads: '8 corridors', roadDetail: 'Potential closure points marked for demo review', infrastructure: 'Bridge B-204', infrastructureDetail: 'Scenario inspection flag; not a live sensor alert', service: 'Trauma network', serviceDetail: 'Review emergency access and service continuity', confidence: '76%', color: '#f59e0b', actions: [
+                    { title: 'Structure inspection queue:', detail: 'Prioritize demo bridges and public buildings for review.' },
+                    { title: 'Access route review:', detail: 'Identify alternate paths around hypothetical closures.' },
+                    { title: 'Public safety draft:', detail: 'Prepare a sample post-event safety notice for review.' }
+                ] },
+                grid: { name: 'Power grid failure', zones: '7 zones', zoneDetail: 'Seven illustrative zones flagged for continuity planning', roads: '3 corridors', roadDetail: 'Demo routes affected by simulated signal outages', infrastructure: 'Substation G-08', infrastructureDetail: 'Scenario-only utility dependency flag', service: 'Hospital H-12', serviceDetail: 'Review backup-power and continuity procedures', confidence: '84%', color: '#eab308', actions: [
+                    { title: 'Backup-power review:', detail: 'Check demo critical facilities against backup-power plans.' },
+                    { title: 'Traffic contingency review:', detail: 'Review signal-outage routes with operations staff.' },
+                    { title: 'Continuity advisory draft:', detail: 'Prepare a sample service-status notice for approval.' }
+                ] }
+            };
+            return profiles[state.simulation.type] || profiles.rain;
+        }
+
+        function renderDisasterSimulatorView() {
+            const scenario = getSimulationScenario();
+            return `
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-cyan-500/20 text-cyan-400 font-mono text-[10px] px-2 py-0.5 rounded font-bold border border-cyan-500/40">SIGNATURE MODULE</span>
+                                <h2 class="text-xl font-bold text-slate-100">${getT('simTitle')}</h2>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Stress-test municipal infrastructure, simulate extreme hydro-meteorological events, and generate actionable resilience mitigation plans.</p>
+                        </div>
+                    </div>
+
+                    <!-- Simulator Controls Card -->
+                    <div class="glass-panel-glow rounded-xl p-5 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-300 block mb-1">Scenario Hazards</label>
+                                <select id="simHazardSelect" class="w-full bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-2 focus:border-cyan-500">
+                                    <option value="rain" ${state.simulation.type==='rain'?'selected':''}>🌊 Extreme Rainfall (+40% Precipitation)</option>
+                                    <option value="storm" ${state.simulation.type==='storm'?'selected':''}>🌪️ Severe Tropical Storm Category 2</option>
+                                    <option value="quake" ${state.simulation.type==='quake'?'selected':''}>🌍 Seismic Tremor (Magnitude 5.8)</option>
+                                    <option value="grid" ${state.simulation.type==='grid'?'selected':''}>⚡ Power Grid Cascading Failure</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-300 block mb-1">Duration Window</label>
+                                <select id="simDurationSelect" class="w-full bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-2">
+                                    <option value="6" ${Number(state.simulation.duration)===6?'selected':''}>6 Hours</option>
+                                    <option value="12" ${Number(state.simulation.duration)===12?'selected':''}>12 Hours</option>
+                                    <option value="24" ${Number(state.simulation.duration)===24?'selected':''}>24 Hours</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="runResilienceSimulation()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-navy-950 font-bold py-2 rounded-lg text-xs transition shadow-lg shadow-cyan-500/30 flex items-center justify-center space-x-2">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    <span>RUN RESILIENCE SCENARIO</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Simulation Live Impact Output -->
+                    ${state.simulation.active ? `
+                        <div class="space-y-6 animate-fade-in"><div class="bg-amber-950/25 border border-amber-800/40 rounded-lg px-3 py-2 text-[10px] text-amber-200">Illustrative ${scenario.name} scenario · ${state.simulation.duration || 6}-hour window · synthetic Mangalore data; not a live prediction or dispatch.</div>
+                            <!-- Impact KPI Matrix -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div class="bg-red-950/40 border border-red-800/60 p-4 rounded-xl">
+                                    <div class="text-xs text-red-400 font-medium">Affected Zones</div>
+                                    <div class="text-2xl font-bold text-slate-100 font-mono mt-1">${scenario.zones}</div>
+                                    <div class="text-[10px] text-slate-400 mt-1">${scenario.zoneDetail}</div>
+                                </div>
+                                <div class="bg-amber-950/40 border border-amber-800/60 p-4 rounded-xl">
+                                    <div class="text-xs text-amber-400 font-medium">At-Risk Roads</div>
+                                    <div class="text-2xl font-bold text-slate-100 font-mono mt-1">${scenario.roads}</div>
+                                    <div class="text-[10px] text-slate-400 mt-1">${scenario.roadDetail}</div>
+                                </div>
+                                <div class="bg-yellow-950/40 border border-yellow-800/60 p-4 rounded-xl">
+                                    <div class="text-xs text-yellow-400 font-medium">Infrastructure Risk</div>
+                                    <div class="text-2xl font-bold text-slate-100 font-mono mt-1">${scenario.infrastructure}</div>
+                                    <div class="text-[10px] text-slate-400 mt-1">${scenario.infrastructureDetail}</div>
+                                </div>
+                                <div class="bg-cyan-950/40 border border-cyan-800/60 p-4 rounded-xl">
+                                    <div class="text-xs text-cyan-400 font-medium">Essential Service Load</div>
+                                    <div class="text-2xl font-bold text-slate-100 font-mono mt-1">${scenario.service}</div>
+                                    <div class="text-[10px] text-slate-400 mt-1">${scenario.serviceDetail}</div>
+                                </div>
+                            </div>
+
+                            <!-- Map and Generated AI Mitigation Plan -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="glass-panel rounded-xl p-4">
+                                    <h3 class="text-sm font-bold text-slate-200 mb-2">${scenario.name} · illustrative impact map</h3>
+                                    <div id="gisMap" class="w-full h-80 rounded-lg border border-slate-800"></div>
+                                </div>
+
+                                <div class="glass-panel rounded-xl p-4 flex flex-col justify-between space-y-4">
+                                    <div>
+                                        <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                                                <i class="fa-solid fa-brain text-purple-400"></i> Illustrative Response Plan
+                                            </h3>
+                                            <span class="text-[10px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded font-mono">Demo confidence: ${scenario.confidence}</span>
+                                        </div>
+
+                                        <div class="space-y-2 text-xs">
+                                            ${scenario.actions.map((step, i) => `<div class="p-2 bg-navy-950 rounded border border-slate-800"><span class="text-cyan-400 font-bold">${i + 1}. ${step.title}</span><p class="text-slate-300 text-[11px]">${step.detail}</p></div>`).join('')}
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-3 border-t border-slate-800 flex gap-3">
+                                        <button onclick="approveSimulationPlan()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-xs transition shadow-lg shadow-emerald-600/20">
+                                            <i class="fa-solid fa-check mr-1"></i> Acknowledge Demo Plan
+                                        </button>
+                                        <button onclick="state.simulation.active = false; renderApp();" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg">
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="glass-panel rounded-xl p-12 text-center text-slate-500 space-y-3">
+                            <i class="fa-solid fa-cloud-showers-water text-4xl text-slate-600"></i>
+                            <h3 class="text-slate-300 font-medium">No Active Simulation Running</h3>
+                            <p class="text-xs max-w-md mx-auto">Select a hazard and duration to run an illustrative scenario using synthetic Mangalore demo data.</p>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function runResilienceSimulation() {
+            state.simulation.type = document.getElementById('simHazardSelect')?.value || 'rain';
+            state.simulation.duration = Number(document.getElementById('simDurationSelect')?.value || 6);
+            state.simulation.active = true;
+            state.simulation.step = 3;
+            renderApp();
+            setTimeout(initLeafletMap, 150);
+        }
+
+        function approveSimulationPlan() {
+            state.auditLogs.unshift({
+                id: 'AUD-' + Math.floor(1000 + Math.random() * 9000),
+                time: new Date().toISOString().substring(11, 19) + ' UTC',
+                event: `Demo-only ${getSimulationScenario().name} response plan acknowledged`,
+                actor: 'Operations Administrator',
+                status: 'DEMO_ACKNOWLEDGED',
+                impact: 'No real dispatch, alert, or public notice was sent.'
+            });
+            alert('Demo plan acknowledged. No real-world dispatch or public alert was sent.');
+            state.simulation.active = false;
+            renderApp();
+        }
+
+        function renderIncidentCommandView() {
+            return `
+                <div class="space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-100">Incident Command Center</h2>
+                        <p class="text-xs text-slate-400">Structured AI intelligence workflow pipeline from citizen intake to human review.</p>
+                    </div>
+
+                    <!-- Workflow Pipeline Visualization -->
+                    <div class="glass-panel rounded-xl p-4 overflow-x-auto">
+                        <div class="flex items-center justify-between min-w-[700px] text-center text-xs">
+                            ${renderPipelineNode('1', 'INTAKE', 'Active', 'fa-inbox')}
+                            <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            ${renderPipelineNode('2', 'EVIDENCE', 'Complete', 'fa-magnifying-glass')}
+                            <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            ${renderPipelineNode('3', 'FUSION', '7 Fused', 'fa-object-group')}
+                            <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            ${renderPipelineNode('4', 'AI RECS', 'Generated', 'fa-lightbulb')}
+                            <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            ${renderPipelineNode('5', 'DECISION', 'Pending', 'fa-user-check')}
+                        </div>
+                    </div>
+
+                    <!-- Incident List Table -->
+                    <div class="glass-panel rounded-xl p-4 space-y-3">
+                        <h3 class="text-sm font-bold text-slate-200">Active High-Priority Incidents</h3>
+                        <div class="space-y-2">
+                            ${CITY_MARKERS.map(inc => `
+                                <div class="bg-navy-950 p-3 rounded-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-cyan-500/40 transition">
+                                    <div class="space-y-1">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-xs font-mono text-cyan-400 font-bold">${inc.id}</span>
+                                            <span class="text-xs font-bold text-slate-100">${inc.title}</span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${inc.severity==='critical'?'bg-red-950 text-red-400 border border-red-800':'bg-amber-950 text-amber-400 border border-amber-800'}">${inc.severity || inc.status}</span>
+                                        </div>
+                                        <p class="text-xs text-slate-400">${inc.desc}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2 shrink-0">
+                                        <button onclick="state.selectedMapItem = CITY_MARKERS[0]; setActiveTab('overview');" class="bg-navy-900 hover:bg-slate-800 border border-slate-700 text-slate-200 px-3 py-1.5 rounded text-xs transition">
+                                            View Evidence
+                                        </button>
+                                        <button onclick="approveAction('${inc.id}')" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 rounded text-xs transition">
+                                            Approve Action
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPipelineNode(step, title, sub, icon) {
+            return `
+                <div class="flex flex-col items-center space-y-1">
+                    <div class="w-10 h-10 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-400 flex items-center justify-center font-bold">
+                        <i class="fa-solid ${icon}"></i>
+                    </div>
+                    <span class="font-bold text-slate-200 text-[11px]">${title}</span>
+                    <span class="text-[10px] text-slate-500 font-mono">${sub}</span>
+                </div>
+            `;
+        }
+
+        function captureReportLocation() {
+            if (!navigator.geolocation) { alert('Location services are not supported by this browser.'); return; }
+            navigator.geolocation.getCurrentPosition(position => {
+                state.reportDraft.location = { lat: position.coords.latitude, lng: position.coords.longitude };
+                state.reportDraft.locationLabel = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+                renderApp();
+            }, () => alert('Location permission was denied. Please enable location access and try again.'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+        }
+
+        function handleReportPhoto(input) {
+            state.reportDraft.photoName = input.files?.[0]?.name || '';
+            renderApp();
+        }
+
+        function submitCitizenReport() {
+            const draft = state.reportDraft;
+            if (!draft.description.trim()) { alert('Please describe the issue before submitting.'); return; }
+            if (!draft.location) { alert('Capture the report location first so responders receive the correct coordinates.'); return; }
+            const point = draft.location;
+            const id = 'CS-' + Math.floor(10000 + Math.random() * 89999);
+            const report = { id, type: 'report', title: `${draft.category} citizen report`, lat: point.lat, lng: point.lng, status: 'new', severity: draft.category === 'Medical emergency' || draft.category === 'Fire' ? 'critical' : 'elevated', desc: draft.description, factors: ['Citizen-submitted', draft.photoName ? 'Photo evidence attached' : 'No photo attached'], confidence: draft.photoName ? 78 : 62 };
+            CITY_MARKERS.push(report);
+            state.submittedReports.unshift({ ...report, time: 'just now', photoName: draft.photoName, locationLabel: draft.locationLabel });
+            state.fusedReports.unshift({ id, cat: draft.category, loc: draft.locationLabel, time: 'Just now', desc: draft.description, simScore: report.confidence });
+            state.activeNotifications.unshift({ id: Date.now(), title: 'New citizen report received', detail: `${id} · ${draft.category} · ${draft.locationLabel}`, time: 'just now', priority: report.severity === 'critical' ? 'high' : 'medium' });
+            state.activeNotifications = state.activeNotifications.slice(0, 8);
+            speakAlert(`New citizen report. ${draft.category}. ${draft.description}`);
+            state.reportDraft = { category: 'Flooding', description: '', location: null, locationLabel: 'Location not captured', photoName: '' };
+            renderApp();
+        }
+
+        function routeToCitizenReport(id) {
+            state.routeDestination = id;
+            dispatchResource('ambulance');
+            setActiveTab('map');
+            setTimeout(() => { if (typeof calculateDispatchRoute === 'function') calculateDispatchRoute(); }, 700);
+        }
+
+        function exportAnalyticsReportCsv() {
+            const rows = [
+                ['Metric', 'Value', 'Period', 'Notes'],
+                ['Alerts logged', '1284', '30 days', 'Historical operations record'],
+                ['Median response time', '11m 42s', '30 days', 'Improvement versus prior period'],
+                ['SLA achieved', '86.4%', '30 days', 'Target >= 90%'],
+                ['Critical alerts', '38', '30 days', '3.0% of total volume'],
+                ['Alert trend day 01', '28', '30 days', 'Synthetic trend series'],
+                ['Alert trend day 30', '64', '30 days', 'Synthetic trend series'],
+                ['Average response week 1', '16.8 minutes', '30 days', 'Synthetic trend series'],
+                ['Average response week 4', '11.7 minutes', '30 days', 'Synthetic trend series']
+            ];
+            downloadCsv(rows, `cityshield-mangalore-analytics-${new Date().toISOString().slice(0,10)}.csv`);
+        }
+
+        function exportIncidentHistoryCsv() {
+            const rows = [['Incident ID', 'Type', 'Title', 'Latitude', 'Longitude', 'Severity', 'Status', 'Description', 'Confidence']];
+            CITY_MARKERS.forEach(item => rows.push([item.id, item.type, item.title, item.lat, item.lng, item.severity || '', item.status || '', item.desc, item.confidence]));
+            state.auditLogs.forEach(log => rows.push([log.id, 'audit', log.event, '', '', log.status, 'logged', log.impact, '']));
+            downloadCsv(rows, `cityshield-mangalore-incident-history-${new Date().toISOString().slice(0,10)}.csv`);
+        }
+
+        function downloadCsv(rows, filename) {
+            const csv = rows.map(row => row.map(csvEscape).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob); const link = document.createElement('a');
+            link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function renderCitizenReportsView() {
+            return `
+                <div class="space-y-6">
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-3"><div><h2 class="text-xl font-bold text-slate-100">Citizen Report Center</h2><p class="text-xs text-slate-400">Structured intake, automatic location capture, evidence upload, fusion and responder routing for Mangalore.</p></div><div class="flex gap-2"><button onclick="exportIncidentHistoryCsv()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-[10px] px-3 py-2 rounded">Export incident history</button><button onclick="setActiveTab('map')" class="bg-navy-900 border border-slate-700 text-slate-200 text-[10px] px-3 py-2 rounded">Open response map</button></div></div>
+                    <div class="glass-panel rounded-xl p-5 border border-cyan-500/30 space-y-4"><div class="flex items-center justify-between border-b border-slate-800 pb-2"><div><h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-file-circle-plus text-cyan-300 mr-2"></i>Submit a structured report</h3><p class="text-[10px] text-slate-500 mt-1">Reports are added to the incident map and can be routed to responders.</p></div><span class="text-[10px] font-mono text-emerald-400">MANGALORE INTAKE</span></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div><label class="text-[11px] text-slate-400 block mb-1">Incident category</label><select onchange="state.reportDraft.category=this.value" class="w-full bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-2"><option ${state.reportDraft.category==='Flooding'?'selected':''}>Flooding</option><option ${state.reportDraft.category==='Road damage'?'selected':''}>Road damage</option><option>Fire</option><option>Medical emergency</option><option>Power outage</option><option>Water leakage</option><option>Public safety</option><option>Infrastructure damage</option></select></div><div><label class="text-[11px] text-slate-400 block mb-1">Photo or video evidence</label><input type="file" accept="image/*,video/*" onchange="handleReportPhoto(this)" class="w-full bg-navy-950 border border-slate-700 text-slate-400 text-xs rounded-lg p-1.5"/><div class="text-[10px] text-slate-500 mt-1">${state.reportDraft.photoName || 'No file selected'}</div></div></div>
+                        <div><label class="text-[11px] text-slate-400 block mb-1">Describe what happened</label><textarea oninput="state.reportDraft.description=this.value" placeholder="Example: Water is rising across the road near the market entrance…" class="w-full h-24 bg-navy-950 border border-slate-700 text-slate-200 text-xs rounded-lg p-3 resize-none">${state.reportDraft.description}</textarea></div>
+                        <div class="flex flex-wrap items-center justify-between gap-3"><div class="flex items-center gap-2 text-[11px] ${state.reportDraft.location ? 'text-emerald-400' : 'text-slate-500'}"><i class="fa-solid fa-location-dot"></i>${state.reportDraft.locationLabel}</div><div class="flex gap-2"><button onclick="captureReportLocation()" class="bg-navy-900 border border-slate-700 hover:border-cyan-400 text-slate-200 text-xs px-3 py-2 rounded-lg"><i class="fa-solid fa-crosshairs mr-1"></i>Capture GPS</button><button onclick="submitCitizenReport()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg">Submit report</button></div></div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-5 space-y-4"><div class="flex items-center justify-between border-b border-slate-800 pb-2"><h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-list-check text-cyan-300 mr-2"></i>Recent submitted reports</h3><span class="text-[10px] font-mono text-slate-500">${state.submittedReports.length} THIS SESSION</span></div><div class="space-y-2">${state.submittedReports.length ? state.submittedReports.map(report => `<div class="bg-navy-950 border border-slate-800 rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3"><div><div class="flex items-center gap-2"><span class="font-mono text-cyan-300 text-[11px]">${report.id}</span><span class="text-xs font-bold text-slate-200">${report.title}</span><span class="text-[10px] text-amber-300">${report.status}</span></div><p class="text-[11px] text-slate-400 mt-1">${report.desc}</p><div class="text-[10px] text-slate-500 mt-1">${report.locationLabel} ${report.photoName ? '· Evidence attached' : ''}</div></div><button onclick="routeToCitizenReport('${report.id}')" class="bg-orange-500 hover:bg-orange-400 text-slate-950 font-bold text-[10px] px-3 py-2 rounded">Route responders</button></div>`).join('') : '<div class="text-xs text-slate-500 text-center py-5">No new reports submitted in this session.</div>'}</div></div>
+                    <div class="glass-panel rounded-xl p-5 space-y-4 border border-purple-500/20"><div class="flex items-center justify-between border-b border-slate-800 pb-2"><h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-object-group text-purple-300 mr-2"></i>Duplicate report fusion</h3><button onclick="fuseReportsAction()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] px-3 py-2 rounded">Run semantic fusion</button></div><div class="space-y-2">${state.fusedReports.map(rep => `<div class="p-3 bg-navy-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs"><div><div class="flex items-center gap-2"><span class="font-mono text-cyan-400 font-bold">${rep.id}</span><span class="text-slate-200">${rep.loc}</span><span class="text-slate-500 text-[10px]">${rep.time}</span></div><p class="text-slate-400 text-[11px] mt-1">${rep.desc}</p></div><span class="text-purple-400 font-mono text-[11px] font-bold">${rep.simScore}% Match</span></div>`).join('')}</div></div>
+                </div>
+            `;
+        }
+
+        function triggerCvScan() {
+            state.cvUpload.scanning = true;
+            renderApp();
+            setTimeout(() => {
+                state.cvUpload.scanning = false;
+                renderApp();
+            }, 1200);
+        }
+
+        function fuseReportsAction() {
+            state.activeNotifications.unshift({ id: Date.now(), title: 'Citizen reports fused', detail: '5 related inputs unified into incident context #INC-402.', time: 'just now', priority: 'normal' });
+            state.auditLogs.unshift({ id: 'AUD-' + Math.floor(1000 + Math.random() * 9000), time: new Date().toISOString().substring(11, 19) + ' UTC', event: 'Citizen Report Fusion Completed', actor: 'CityShield AI Engine', status: 'FUSED', impact: 'Incident context #INC-402 updated' });
+            renderApp();
+        }
+
+        function renderRiskIntelligenceView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">Flood & Risk Intelligence Module</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                        <div class="glass-panel p-4 rounded-xl space-y-1">
+                            <span class="text-slate-400">0 - 6 Hours Forecast</span>
+                            <div class="text-lg font-bold text-amber-400">Elevated (78%)</div>
+                            <p class="text-[11px] text-slate-500">Zone 4 drainage saturation expected</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl space-y-1">
+                            <span class="text-slate-400">6 - 12 Hours Forecast</span>
+                            <div class="text-lg font-bold text-red-400">Critical (85%)</div>
+                            <p class="text-[11px] text-slate-500">Peak runoff during morning transit</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl space-y-1">
+                            <span class="text-slate-400">12 - 24 Hours Forecast</span>
+                            <div class="text-lg font-bold text-yellow-400">Moderate (60%)</div>
+                            <p class="text-[11px] text-slate-500">Precipitation tapering off</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl space-y-1">
+                            <span class="text-slate-400">24 - 48 Hours Forecast</span>
+                            <div class="text-lg font-bold text-emerald-400">Normal (30%)</div>
+                            <p class="text-[11px] text-slate-500">Water levels returning to baseline</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderInfrastructureHealthView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">Infrastructure Intelligence</h2>
+                    <div class="glass-panel p-4 rounded-xl space-y-3">
+                        <div class="flex justify-between items-center text-xs border-b border-slate-800 pb-2">
+                            <span class="font-bold text-slate-200">Asset: Bridge B-204</span>
+                            <span class="text-amber-400 font-mono font-bold">Inspection Recommended</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Telemetry shows vibrational frequency deviations during heavy load transit windows.</p>
+                        <button onclick="approveAction('INF-204')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded">
+                            Dispatch Inspection Drone
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderEssentialServicesView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">Essential Services Telemetry</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="glass-panel p-4 rounded-xl space-y-2">
+                            <div class="text-xs font-bold text-slate-300">🏥 Hospitals & Emergency Trauma</div>
+                            <div class="text-xl font-bold text-emerald-400 font-mono">98% Operational</div>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full"><div class="bg-emerald-500 h-full" style="width: 98%"></div></div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl space-y-2">
+                            <div class="text-xs font-bold text-slate-300">🚰 Water & Municipal Drainage</div>
+                            <div class="text-xl font-bold text-amber-400 font-mono">88% Operational</div>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full"><div class="bg-amber-500 h-full" style="width: 88%"></div></div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl space-y-2">
+                            <div class="text-xs font-bold text-slate-300">⚡ Power Grid & Redundancy</div>
+                            <div class="text-xl font-bold text-emerald-400 font-mono">94% Operational</div>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full"><div class="bg-emerald-500 h-full" style="width: 94%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAiResponseCenterView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">Explainable AI Response Center</h2>
+                    <div class="glass-panel p-5 rounded-xl space-y-4 border border-purple-500/30">
+                        <div class="text-xs font-mono text-purple-400">RECOMMENDATION #REC-8802</div>
+                        <h3 class="text-sm font-bold text-slate-100">Deploy Flood Barrier Safeguard at Zone 4 Substation</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-navy-950 p-3 rounded-lg">
+                            <div><span class="text-slate-500">WHY:</span> <p class="text-slate-300">Rainfall forecast delta +25% in 2 hours.</p></div>
+                            <div><span class="text-slate-500">EVIDENCE:</span> <p class="text-slate-300">Weather feed + 8 citizen reports.</p></div>
+                            <div><span class="text-slate-500">CONFIDENCE:</span> <p class="text-cyan-400 font-mono font-bold">88%</p></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="approveAction('REC-8802')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-xs">
+                                Approve Action
+                            </button>
+                            <button onclick="modifyRecommendation()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-4 py-2 rounded text-xs">
+                                Reject / Modify
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderEmergencyAlertsView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">Emergency Alert Center</h2>
+                    <div class="glass-panel p-4 rounded-xl space-y-3">
+                        <div class="p-3 bg-red-950/40 border border-red-800/60 rounded-lg flex justify-between items-center text-xs">
+                            <div>
+                                <span class="font-bold text-red-400">HIGH PRIORITY BROADCAST</span>
+                                <p class="text-slate-300 mt-0.5">Zone 4 Roadway Standing Water Advisory</p>
+                            </div>
+                            <button onclick="dispatchEmergencyBroadcast()" class="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded">
+                                Dispatch Broadcast
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAnalyticsView() {
+            return `
+                <div class="space-y-6">
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-3"><div><h2 class="text-xl font-bold text-slate-100">City Resilience Analytics</h2><p class="text-xs text-slate-400">Historical alert trends and emergency response performance across the Mangalore operations record.</p></div><div class="flex items-center gap-2"><select onchange="setVoiceAlertLanguage(this.value)" class="bg-navy-950 border border-slate-700 text-slate-300 text-[10px] rounded px-2 py-1"><option value="en" ${state.voiceAlertLanguage==='en-US'?'selected':''}>Voice: English</option><option value="hi" ${state.voiceAlertLanguage==='hi-IN'?'selected':''}>Voice: हिन्दी</option><option value="kn" ${state.voiceAlertLanguage==='kn-IN'?'selected':''}>Voice: ಕನ್ನಡ</option><option value="bn" ${state.voiceAlertLanguage==='bn-IN'?'selected':''}>Voice: বাংলা</option><option value="es" ${state.voiceAlertLanguage==='es-ES'?'selected':''}>Voice: Español</option><option value="de" ${state.voiceAlertLanguage==='de-DE'?'selected':''}>Voice: Deutsch</option><option value="ar" ${state.voiceAlertLanguage==='ar-SA'?'selected':''}>Voice: العربية</option><option value="zh" ${state.voiceAlertLanguage==='zh-CN'?'selected':''}>Voice: 中文</option><option value="ja" ${state.voiceAlertLanguage==='ja-JP'?'selected':''}>Voice: 日本語</option></select><button onclick="toggleVoiceAlerts()" class="bg-navy-900 border border-slate-700 text-slate-200 text-[10px] px-2 py-1 rounded">${state.voiceAlertsEnabled ? 'Voice On' : 'Voice Off'}</button><button onclick="exportAlertLogsCsv()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-[10px] px-2 py-1 rounded">Alerts CSV</button><button onclick="exportAnalyticsReportCsv()" class="bg-purple-500 hover:bg-purple-400 text-white font-bold text-[10px] px-2 py-1 rounded">Analytics CSV</button><button onclick="exportIncidentHistoryCsv()" class="bg-orange-500 hover:bg-orange-400 text-slate-950 font-bold text-[10px] px-2 py-1 rounded">Incidents CSV</button><span class="text-[10px] font-mono text-emerald-400 border border-emerald-800/60 bg-emerald-950/30 px-2 py-1 rounded">HISTORICAL WINDOW · 30 DAYS</span></div></div>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                        <div class="glass-panel p-4 rounded-xl"><div class="text-slate-500">Alerts logged</div><div class="text-2xl font-bold text-slate-100 mt-1">1,284</div><div class="text-emerald-400 mt-1">↑ 12.6% vs prior period</div></div>
+                        <div class="glass-panel p-4 rounded-xl"><div class="text-slate-500">Median response</div><div class="text-2xl font-bold text-cyan-300 mt-1">11m 42s</div><div class="text-emerald-400 mt-1">↓ 2m 18s improved</div></div>
+                        <div class="glass-panel p-4 rounded-xl"><div class="text-slate-500">SLA achieved</div><div class="text-2xl font-bold text-emerald-400 mt-1">86.4%</div><div class="text-amber-400 mt-1">Target ≥ 90%</div></div>
+                        <div class="glass-panel p-4 rounded-xl"><div class="text-slate-500">Critical alerts</div><div class="text-2xl font-bold text-red-400 mt-1">38</div><div class="text-slate-500 mt-1">3.0% of total volume</div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass-panel p-4 rounded-xl space-y-2"><h3 class="text-xs font-bold text-slate-200">Historical alert trend · 30 days</h3><div style="position:relative;height:16rem"><canvas id="chart1" style="display:block;width:100%;height:100%"></canvas></div></div>
+                        <div class="glass-panel p-4 rounded-xl space-y-2"><h3 class="text-xs font-bold text-slate-200">Average emergency response time</h3><div style="position:relative;height:16rem"><canvas id="chart2" style="display:block;width:100%;height:100%"></canvas></div></div>
+                    </div>
+                    <div class="glass-panel p-4 rounded-xl"><div class="flex items-center justify-between mb-3"><h3 class="text-xs font-bold text-slate-200">Response-time performance by alert type</h3><span class="text-[10px] font-mono text-slate-500">TARGET: 15 MIN</span></div><div style="position:relative;height:14rem"><canvas id="chart3" style="display:block;width:100%;height:100%"></canvas></div></div>
+                </div>
+            `;
+        }
+
+        let analyticsChartInstances = [];
+        function initAnalyticsCharts() {
+            analyticsChartInstances.forEach(chart => { try { chart.destroy(); } catch (_) {} });
+            analyticsChartInstances = [];
+            if (!window.Chart) return;
+            const common = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } }, y: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } } } };
+            const ctx1 = document.getElementById('chart1');
+            if (ctx1) analyticsChartInstances.push(new Chart(ctx1, { type: 'line', data: { labels: ['01','05','09','13','17','21','25','30'], datasets: [{ data: [28, 34, 31, 46, 41, 58, 52, 64], borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,.12)', fill: true, tension: .4, pointRadius: 2 }] }, options: common }));
+            const ctx2 = document.getElementById('chart2');
+            if (ctx2) analyticsChartInstances.push(new Chart(ctx2, { type: 'bar', data: { labels: ['Week 1','Week 2','Week 3','Week 4'], datasets: [{ data: [16.8, 14.2, 12.6, 11.7], backgroundColor: ['#334155','#3b82f6','#06b6d4','#22d3ee'], borderRadius: 5 }] }, options: { ...common, scales: { ...common.scales, y: { ...common.scales.y, suggestedMax: 20, title: { display: true, text: 'minutes', color: '#94A3B8' } } } } }));
+            const ctx3 = document.getElementById('chart3');
+            if (ctx3) analyticsChartInstances.push(new Chart(ctx3, { type: 'bar', data: { labels: ['Flood','Road','Water','Power','Health','Fire'], datasets: [{ data: [14, 18, 12, 9, 7, 11], backgroundColor: '#8b5cf6', borderRadius: 5 }] }, options: { ...common, indexAxis: 'y', scales: { x: { ...common.scales.x, type: 'linear', min: 0, suggestedMax: 25, title: { display: true, text: 'minutes', color: '#94A3B8' } }, y: { ...common.scales.y, type: 'category', grid: { display: false } } } } }));
+        }
+
+        function renderAuditTrailView() {
+            return `
+                <div class="space-y-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-100">Audit & Evidence Trail</h2>
+                        <p class="text-xs text-slate-400">Immutable ledger of human-in-the-loop decisions and explainable AI recommendations.</p>
+                    </div>
+
+                    <div class="glass-panel p-4 rounded-xl space-y-2">
+                        <div class="space-y-2">
+                            ${state.auditLogs.map(log => `
+                                <div class="p-3 bg-navy-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+                                    <div class="space-y-0.5">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-mono text-cyan-400 font-bold">${log.id}</span>
+                                            <span class="text-slate-200 font-bold">${log.event}</span>
+                                            <span class="text-slate-500 font-mono text-[10px]">${log.time}</span>
+                                        </div>
+                                        <p class="text-slate-400 text-[11px]">Actor: ${log.actor} • Impact: ${log.impact}</p>
+                                    </div>
+                                    <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-mono rounded font-bold">${log.status}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSettingsView() {
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-slate-100">System Settings & Role Governance</h2>
+                    <div class="glass-panel p-5 rounded-xl text-xs space-y-4">
+                        <div>
+                            <label class="font-bold text-slate-200 block mb-1">Active Command Role</label>
+                            <select class="bg-navy-950 border border-slate-700 text-slate-300 p-2 rounded w-64">
+                                <option>Operations Administrator (Level 4)</option>
+                                <option>Emergency Service Coordinator</option>
+                                <option>Infrastructure Analyst</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loginAs(role) {
+            state.authenticated = true;
+            state.roleChooserOpen = false;
+            state.userRole = role;
+            state.userName = role === 'Admin' ? 'Operations Administrator' : role === 'Responder' ? 'Field Responder' : 'Citizen Reporter';
+            state.activeTab = role === 'Admin' ? (state.pendingTab || 'overview') : role === 'Responder' ? 'map' : 'reports';
+            state.pendingTab = 'overview';
+            state.isLandingView = false;
+            startLiveFeeds();
+            renderApp();
+        }
+
+        function logout() { returnToWelcome(); }
+
+        function renderAuthScreen() {
+            return `
+                <div class="min-h-screen bg-[#07121d] text-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
+                    <div class="absolute -top-32 -right-32 w-[520px] h-[520px] rounded-full border border-cyan-300/10"></div>
+                    <div class="absolute -bottom-48 -left-24 w-[520px] h-[520px] rounded-full border border-cyan-300/10"></div>
+                    <div class="relative z-10 w-full max-w-4xl grid lg:grid-cols-[1.05fr_.95fr] gap-8 items-center">
+                        <div class="hidden lg:block">
+                            <div class="flex items-center gap-3 mb-8"><div class="w-10 h-10 rounded-xl border border-cyan-300/70 bg-cyan-400/10 flex items-center justify-center text-cyan-300"><i class="fa-solid fa-shield-halved text-xl"></i></div><div><div class="text-base tracking-[0.24em] font-bold">CITYSHIELD</div><div class="text-[9px] tracking-[0.38em] text-slate-400">RESILIENCE</div></div></div>
+                            <div class="text-[10px] font-mono tracking-[0.28em] text-cyan-300 mb-4">MANGALORE URBAN OPERATIONS</div>
+                            <h1 class="text-5xl font-semibold tracking-[-0.06em] leading-none">One city.<br><span class="text-cyan-300">Many hands.</span><br>One response.</h1>
+                            <p class="mt-6 text-sm leading-7 text-slate-400 max-w-md">A human-in-the-loop resilience command center that connects citizen signals, AI evidence, responders and resources in one operational view.</p>
+                        </div>
+                        <div class="bg-[#0b1724]/95 border border-slate-700/80 shadow-2xl p-6 sm:p-8 rounded-2xl">
+                            <button onclick="state.roleChooserOpen=false; state.pendingTab='overview'; renderApp();" class="text-xs text-cyan-300 hover:text-cyan-100 mb-5"><i class="fa-solid fa-arrow-left mr-2"></i>Back to CityShield</button>
+                            <div class="text-[10px] font-mono tracking-[0.2em] text-slate-500">DEMO ENVIRONMENT · MANGALORE</div>
+                            <h2 class="text-2xl font-bold mt-2">Choose your access role</h2>
+                            <p class="text-xs text-slate-400 mt-2 mb-6">Mock authentication for this prototype. No password or account is required.</p>
+                            <div class="space-y-3">
+                                <button onclick="loginAs('Admin')" class="w-full text-left p-4 rounded-xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 transition"><div class="flex items-center gap-3"><i class="fa-solid fa-user-shield text-cyan-300 text-lg"></i><div><div class="text-sm font-bold">Admin / Incident Commander</div><div class="text-[11px] text-slate-400 mt-1">Full map, analytics, dispatch, alerts and audit access</div></div><i class="fa-solid fa-arrow-right ml-auto text-cyan-300"></i></div></button>
+                                <button onclick="loginAs('Responder')" class="w-full text-left p-4 rounded-xl border border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/15 transition"><div class="flex items-center gap-3"><i class="fa-solid fa-person-running text-orange-300 text-lg"></i><div><div class="text-sm font-bold">Responder / Field Unit</div><div class="text-[11px] text-slate-400 mt-1">Live map, routing, team tracking and resource availability</div></div><i class="fa-solid fa-arrow-right ml-auto text-orange-300"></i></div></button>
+                                <button onclick="loginAs('Citizen')" class="w-full text-left p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/15 transition"><div class="flex items-center gap-3"><i class="fa-solid fa-people-arrows text-emerald-300 text-lg"></i><div><div class="text-sm font-bold">Citizen / Community Reporter</div><div class="text-[11px] text-slate-400 mt-1">Submit reports, capture GPS and attach evidence</div></div><i class="fa-solid fa-arrow-right ml-auto text-emerald-300"></i></div></button>
+                            </div>
+                            <div class="mt-6 pt-4 border-t border-slate-800 text-[10px] text-slate-500 font-mono flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Prototype access · Synthetic Mangalore data</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLandingPage() {
+            return `
+                <div class="min-h-screen bg-[#07121d] text-slate-100 relative overflow-hidden flex flex-col">
+                    <div class="absolute inset-0 pointer-events-none opacity-70" style="background: radial-gradient(circle at 78% 49%, rgba(22, 104, 135, .18), transparent 32%), linear-gradient(120deg, transparent 0 55%, rgba(34, 211, 238, .035) 55% 55.2%, transparent 55.2%);"></div>
+                    <div class="absolute w-[720px] h-[720px] rounded-full border border-cyan-300/10 right-[-150px] top-[90px] pointer-events-none"></div>
+                    <div class="absolute w-[520px] h-[520px] rounded-full border border-cyan-300/10 right-[-45px] top-[190px] pointer-events-none"></div>
+                    <header class="relative z-10 flex items-center justify-between max-w-[1280px] mx-auto w-full px-6 lg:px-10 py-7">
+                        <button onclick="returnToWelcome()" class="flex items-center gap-3 text-left group"><div class="w-9 h-9 rounded-xl border border-cyan-300/70 bg-cyan-400/10 flex items-center justify-center text-cyan-300 group-hover:bg-cyan-300 group-hover:text-[#07121d] transition"><i class="fa-solid fa-shield-halved"></i></div><div><div class="text-sm tracking-[0.24em] font-bold">CITYSHIELD</div><div class="text-[9px] tracking-[0.38em] text-slate-400">RESILIENCE</div></div></button>
+                        <div class="flex items-center gap-5 text-[10px] font-mono tracking-[0.14em] text-slate-400"><span class="hidden sm:flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span>DEMO ENVIRONMENT</span><span class="hidden sm:inline text-slate-700">|</span><span class="hidden md:inline">NOVA CITY</span><button onclick="openRoleChooser('overview')" class="border border-slate-700/80 px-3 py-2 text-slate-200 hover:border-cyan-300 hover:text-cyan-200 transition">Open console <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i></button></div>
+                    </header>
+                    <main class="relative z-10 flex-1 max-w-[1280px] mx-auto w-full px-6 lg:px-10 pt-8 lg:pt-12 pb-10">
+                        <div class="grid lg:grid-cols-[.9fr_1.1fr] gap-12 lg:gap-16 items-center">
+                            <section class="max-w-[570px]">
+                                <div class="flex items-center gap-3 text-[10px] font-mono tracking-[0.3em] text-slate-400 mb-7"><span class="w-9 h-px bg-cyan-300"></span>URBAN RESILIENCE INTELLIGENCE<span class="w-9 h-px bg-cyan-300"></span></div>
+                                <h1 class="text-[clamp(3.5rem,7vw,6.2rem)] leading-[.88] font-semibold tracking-[-0.07em]">CityShield<br><span class="text-cyan-300">Resilience</span></h1>
+                                <p class="mt-7 text-xl font-mono text-slate-200 tracking-wide">Predict. Protect. Respond. Recover.</p>
+                                <p class="mt-6 text-sm leading-7 text-slate-400 max-w-[520px]">AI-powered urban resilience intelligence for organizations responsible for keeping cities safe, connected and operational.</p>
+                                <div class="flex flex-wrap gap-3 mt-7"><button onclick="openRoleChooser('overview')" class="bg-cyan-300 hover:bg-cyan-200 text-[#07121d] font-bold text-xs px-5 py-3.5 transition">Enter Command Center <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i></button><button onclick="openRoleChooser('simulator')" class="border border-slate-700 hover:border-cyan-300 text-slate-200 font-bold text-xs px-5 py-3.5 transition"><i class="fa-regular fa-circle-play mr-2"></i>Explore Demo</button></div>
+                                <div class="mt-7 flex items-center gap-2 text-[10px] font-mono text-slate-500"><i class="fa-solid fa-shield-heart text-emerald-400"></i>Evidence-first AI <span>•</span> Human review before consequential action <span>•</span> Synthetic incident data</div>
+                            </section>
+                            <section class="relative">
+                                <div class="absolute -inset-5 border border-cyan-200/10 rotate-[-3deg] pointer-events-none"></div>
+                                <div class="border border-slate-700/80 bg-[#0a1723]/90 p-3 shadow-2xl shadow-cyan-950/20">
+                                    <div class="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono tracking-[0.18em] text-slate-400"><span class="flex items-center gap-2 text-cyan-200"><span class="w-2 h-2 rounded-full bg-cyan-300 animate-pulse"></span>LIVE CITY RISK LAYER</span><span>PLACES · ROADS · SYNTHETIC INCIDENTS</span></div>
+                                    <div class="relative google-map-shell border border-slate-700/80 h-[320px] sm:h-[390px]">
+                                        <div id="landingMap" class="w-full h-full" aria-label="Interactive map preview centered on your location"></div>
+                                        <div class="map-overlay top-3 left-3 bg-[#07121d]/90 border border-cyan-300/40 px-2 py-1.5 text-[9px] font-mono text-cyan-100"><i class="fa-solid fa-location-dot mr-1"></i><span data-location-status>Requesting location permission…</span></div>
+                                        <button onclick="toggleMapType()" class="map-overlay is-interactive top-3 right-3 bg-[#07121d]/90 border border-slate-700 px-2.5 py-1.5 text-[10px] text-slate-100 hover:border-cyan-300"><i class="fa-solid fa-layer-group mr-1"></i>${state.mapType === 'hybrid' ? 'Road map' : 'Satellite'}</button>
+                                        <button onclick="locateUser()" class="map-overlay is-interactive bottom-3 right-3 bg-[#07121d]/90 border border-cyan-300/40 px-2.5 py-1.5 text-[10px] text-cyan-100 hover:bg-cyan-950/90"><i class="fa-solid fa-location-crosshairs mr-1"></i>My location</button>
+                                        <div class="map-overlay bottom-3 left-3 bg-[#07121d]/90 border border-slate-700 px-2 py-1 text-[9px] font-mono text-slate-300">● NORMAL &nbsp; <span class="text-amber-300">● WATCH</span> &nbsp; <span class="text-red-300">● CRITICAL</span></div>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-2 pt-2 text-[8px] font-mono tracking-[0.08em] text-slate-500"><span>LABELS ADJUST WITH ZOOM · Esri / OSM DATA</span><span data-map-context>${mapContextMessage()}</span></div>
+                                </div>
+                                <p class="mt-3 text-[9px] leading-4 text-slate-500">Location permission is optional. Coordinates are used for centering; Esri receives tile requests for the visible area. If you request a route, its selected endpoints are sent to the public routing service.</p>
+                            </section>
+                        </div>
+                        <div class="grid md:grid-cols-3 gap-8 mt-12 lg:mt-16 pt-6 border-t border-slate-800/80"><div class="flex gap-4"><span class="text-[10px] font-mono text-cyan-300">01</span><div><h3 class="text-xs font-bold text-slate-200">Risk intelligence</h3><p class="text-[11px] text-slate-500 mt-1">See what changed, why it matters, and where.</p></div></div><div class="flex gap-4"><span class="text-[10px] font-mono text-cyan-300">02</span><div><h3 class="text-xs font-bold text-slate-200">Evidence-first AI</h3><p class="text-[11px] text-slate-500 mt-1">Every recommendation is traceable and reviewable.</p></div></div><div class="flex gap-4"><span class="text-[10px] font-mono text-cyan-300">03</span><div><h3 class="text-xs font-bold text-slate-200">Resilience simulation</h3><p class="text-[11px] text-slate-500 mt-1">Pressure-test the city before the next event.</p></div></div></div>
+                    </main>
+                </div>
+            `;
+        }
+
+        function renderNotificationsDrawer() {
+            if (!state.notificationsOpen) return '';
+            return `
+                <div class="fixed inset-y-0 right-0 w-80 bg-navy-900 border-l border-slate-800 z-50 p-4 shadow-2xl flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <div><h3 class="text-sm font-bold text-slate-100">Live Notifications</h3><div class="text-[9px] font-mono text-emerald-400 mt-1"><span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>SIMULATED LIVE FEED</div></div>
+                            <button onclick="exportAlertLogsCsv()" class="text-[10px] text-cyan-300 hover:text-cyan-100 mr-3">CSV</button><button onclick="toggleVoiceAlerts()" class="text-[10px] text-cyan-300 hover:text-cyan-100 mr-3"><i class="fa-solid ${state.voiceAlertsEnabled ? 'fa-volume-high' : 'fa-volume-xmark'}"></i></button><button onclick="state.activeNotifications = []; state.notificationsOpen = false; renderApp();" class="text-[10px] text-slate-500 hover:text-slate-200 mr-3">Clear</button><button onclick="state.notificationsOpen = false; renderApp();" class="text-slate-500 hover:text-slate-200">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="space-y-2">
+                            ${state.activeNotifications.map(n => `
+                                <div class="p-2.5 bg-navy-950 rounded-lg border border-slate-800 space-y-1">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="font-bold text-slate-200">${n.title}</span>
+                                        <span class="text-[10px] text-slate-500">${n.time}</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-400">${n.detail}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSearchModal() {
+            if (!state.searchModalOpen) return '';
+            return `
+                <div class="fixed inset-0 bg-navy-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-20 p-4">
+                    <div class="bg-navy-900 border border-slate-700 rounded-xl w-full max-w-xl p-4 shadow-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <input id="globalSearchInput" type="text" oninput="runGlobalSearch(this.value)" placeholder="Search incidents, infrastructure, facilities..." class="bg-transparent border-none text-slate-100 w-full focus:outline-none text-sm" autofocus />
+                            <button onclick="state.searchModalOpen = false; renderApp();" class="text-slate-500">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div id="searchResults" class="text-xs text-slate-500 font-mono">Quick Suggestions: Central Hospital, Bridge B-204, Zone 4 Flood</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function approveAction(id) {
+            state.auditLogs.unshift({
+                id: 'AUD-' + Math.floor(1000 + Math.random() * 9000),
+                time: new Date().toISOString().substring(11, 19) + ' UTC',
+                event: 'Action Approved for Item ' + id,
+                actor: 'Operations Administrator',
+                status: 'EXECUTED',
+                impact: 'Resource dispatched successfully'
+            });
+            alert("Action for " + id + " approved and logged into Audit Trail!");
+            renderApp();
+        }
+
+        document.addEventListener('keydown', event => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                if (state.authenticated) { state.searchModalOpen = true; renderApp(); setTimeout(() => document.getElementById('globalSearchInput')?.focus(), 30); }
+            }
+            if (event.key === 'Escape') {
+                let changed = false;
+                if (state.searchModalOpen) { state.searchModalOpen = false; changed = true; }
+                if (state.notificationsOpen) { state.notificationsOpen = false; changed = true; }
+                if (changed) renderApp();
+            }
+        });
+
+        // Initialize application on load
+        window.onload = function() {
+            renderApp();
+            startLiveFeeds();
+            setTimeout(() => { if (!window.L) showMapFallback(); }, 4500);
+        };
+    </script>
+</body>
+</html>
