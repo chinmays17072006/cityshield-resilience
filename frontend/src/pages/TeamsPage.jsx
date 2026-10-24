@@ -1,0 +1,3 @@
+import { Users } from "lucide-react";
+
+export default function TeamsPage({ teams }) { return <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{teams.map((team) => <div key={team.id} className="panel p-4"><div className="flex items-start justify-between"><div><p className="eyebrow">Response team</p><h2 className="mt-1 text-sm font-semibold text-slate-100">{team.name}</h2></div><Users size={17} className="text-cyan-300" /></div><div className="mt-4 flex items-center justify-between"><span className="font-mono text-[10px] text-emerald-300">{team.status}</span><span className="text-[10px] text-slate-600">{team.specialty}</span></div></div>)}{!teams.length && <div className="panel p-6 text-sm text-slate-500">No response teams are available.</div>}</div>; }

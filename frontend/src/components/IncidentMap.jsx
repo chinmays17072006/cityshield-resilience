@@ -1,0 +1,9 @@
+import { MapContainer, Marker, Popup, TileLayer, Circle } from "react-leaflet";
+import L from "leaflet";
+import StatusBadge from "./StatusBadge";
+
+const iconFor = (severity) => L.divIcon({ className: "cityshield-marker", html: `<div style="width:16px;height:16px;border-radius:50%;border:2px solid white;background:${severity === "critical" ? "#ef4444" : severity === "high" ? "#f97316" : severity === "medium" ? "#f59e0b" : "#22d3ee"};box-shadow:0 0 0 4px rgba(34,211,238,.12)"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+
+export default function IncidentMap({ incidents, selectedId, onSelect }) {
+  return <div className="panel relative h-[420px] overflow-hidden p-2"><MapContainer center={[12.9141, 74.856]} zoom={13} scrollWheelZoom className="rounded-xl"><TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><Circle center={[12.9141, 74.856]} radius={1500} pathOptions={{ color: "#22d3ee", fillColor: "#22d3ee", fillOpacity: 0.07 }} />{incidents.filter((item) => item.latitude && item.longitude).map((incident) => <Marker key={incident.id} position={[incident.latitude, incident.longitude]} icon={iconFor(incident.severity)} eventHandlers={{ click: () => onSelect(incident.id) }}><Popup><div className="space-y-2"><div className="font-semibold">{incident.title}</div><StatusBadge value={incident.severity || incident.status} /><div className="text-slate-400">{incident.location_label}</div><button className="text-cyan-300 underline" onClick={() => onSelect(incident.id)}>Open incident</button></div></Popup></Marker>)}</MapContainer>{selectedId && <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-cyan-400/30 bg-graphite-950/90 px-3 py-2 text-[11px] text-cyan-200">Selected: {selectedId}</div>}</div>;
+}
